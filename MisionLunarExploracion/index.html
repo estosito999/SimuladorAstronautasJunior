@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <base href="/final-project-Lunar-E/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lunar-E</title>
+  <link rel="stylesheet" href="./src/styles/style.css" />
+  <link rel="icon" href="data:," />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <audio id="background-music" loop preload="auto">
+    <source src="./music.m4a" type="audio/mp4" />
+    <source src="./music.mp3" type="audio/mpeg" />
+  </audio>
+  <div id="start-menu" class="start-menu">
+    <div class="start-panel">
+      <h1>Lunar-E</h1>
+      <p class="start-subtitle">Scene settings</p>
+      <div class="start-section">
+        <h2>Planets</h2>
+        <div class="planet-options">
+          <label><input type="checkbox" data-planet="earth" checked /> Earth</label>
+          <label><input type="checkbox" data-planet="mercury" checked /> Mercury</label>
+          <label><input type="checkbox" data-planet="venus" checked /> Venus</label>
+          <label><input type="checkbox" data-planet="mars" checked /> Mars</label>
+          <label><input type="checkbox" data-planet="jupiter" checked /> Jupiter</label>
+          <label><input type="checkbox" data-planet="saturn" checked /> Saturn</label>
+          <label><input type="checkbox" data-planet="uranus" checked /> Uranus</label>
+          <label><input type="checkbox" data-planet="neptune" checked /> Neptune</label>
+        </div>
+      </div>
+      <div class="start-section">
+        <h2>Graphic quality</h2>
+        <div class="quality-options">
+          <label><input type="radio" name="quality" value="low" checked /> Low</label>
+          <label><input type="radio" name="quality" value="medium" /> Medium</label>
+          <label><input type="radio" name="quality" value="high" /> High</label>
+        </div>
+      </div>
+      <div class="start-section start-options">
+        <label><input id="start-music" type="checkbox" checked /> Music</label>
+        <label><input id="start-legend" type="checkbox" /> Show controls</label>
+      </div>
+      <button id="start-button" class="start-button" type="button">Start exploration</button>
+    </div>
+  </div>
+  <div id="ui">
+    <h1>Lunar-E</h1>
+    <button id="legend-toggle" type="button" aria-controls="legend" aria-expanded="false">
+      Show legend
+    </button>
+    <button id="music-toggle" class="camera-free-toggle" type="button" aria-pressed="true">
+      Music: On
+    </button>
+    <button id="capture-button" class="camera-free-toggle" type="button">
+      Capture JPG
+    </button>
+    <button id="settings-button" class="settings-button" type="button" aria-label="Open settings" title="Settings">⚙</button>
+    <section id="legend" class="legend hidden">
+      <h2>Controls</h2>
+      <div class="legend-block">
+        <h3>Rover</h3>
+        <p><kbd>W</kbd>/<kbd>S</kbd> forward/backward · <kbd>A</kbd>/<kbd>D</kbd> steer</p>
+        <p><kbd>L</kbd> headlights · <kbd>P</kbd> panels · <kbd>O</kbd> gripper · <kbd>C</kbd> follow on/off</p>
+        <p><kbd>M</kbd> background music · <kbd>H</kbd> show/hide legend</p>
+        <p><strong>Free camera:</strong> left drag rotates · right drag moves across the scene · arrows move along world X/Y · mouse wheel zooms</p>
+      </div>
+      <div class="legend-block">
+        <h3>Manual arm</h3>
+        <p><kbd>Q</kbd>/<kbd>E</kbd> base left/right</p>
+        <p><kbd>R</kbd>/<kbd>F</kbd> shoulder up/down · <kbd>T</kbd>/<kbd>G</kbd> elbow bend/extend</p>
+        <p><kbd>J</kbd>/<kbd>K</kbd> wrist yaw · <kbd>U</kbd>/<kbd>I</kbd> wrist pitch · <kbd>X</kbd> reset pose</p>
+      </div>
+    </section>
+  </div>
+  <div id="camera-controls" class="camera-controls" aria-label="Camera controls">
+    <div class="camera-direction-grid" aria-label="Camera orbit controls">
+      <button id="camera-up" class="camera-control camera-up" type="button" aria-label="Rotate camera up" title="Rotate up">▲</button>
+      <button id="camera-left" class="camera-control camera-left" type="button" aria-label="Rotate camera left" title="Rotate left">◀</button>
+      <button id="camera-center" class="camera-control camera-center" type="button" aria-label="Center camera behind rover" title="Center behind rover">◎</button>
+      <button id="camera-right" class="camera-control camera-right" type="button" aria-label="Rotate camera right" title="Rotate right">▶</button>
+      <button id="camera-down" class="camera-control camera-down" type="button" aria-label="Rotate camera down" title="Rotate down">▼</button>
+    </div>
+    <button id="camera-free" class="camera-free-toggle" type="button"
+      aria-label="Toggle free camera" title="Explore the whole scene">
+      Free camera
+    </button>
+    <div class="camera-actions-row">
+      <div class="camera-pair" aria-label="Camera roll controls">
+        <button id="camera-roll-left" class="camera-control" type="button" aria-label="Roll camera counterclockwise" title="Roll left">↶</button>
+        <button id="camera-roll-right" class="camera-control" type="button" aria-label="Roll camera clockwise" title="Roll right">↷</button>
+      </div>
+      <div class="camera-pair" aria-label="Camera zoom controls">
+        <button id="camera-zoom-out" class="camera-control camera-zoom" type="button" aria-label="Zoom camera out" title="Zoom out">−</button>
+        <button id="camera-zoom-in" class="camera-control camera-zoom" type="button" aria-label="Zoom camera in" title="Zoom in">+</button>
+      </div>
+    </div>
+  </div>
+  <div class="planet-time-controls" role="group" aria-label="Planet motion">
+    <span>PLANET TIME</span>
+    <div>
+      <button id="time-backward" type="button" aria-label="Hold to rewind planets at 10 times speed" title="Hold to rewind" aria-pressed="false">◀◀ <b>×10</b></button>
+      <button id="time-forward" type="button" aria-label="Hold to advance planets at 10 times speed" title="Hold to fast-forward" aria-pressed="false"><b>×10</b> ▶▶</button>
+    </div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

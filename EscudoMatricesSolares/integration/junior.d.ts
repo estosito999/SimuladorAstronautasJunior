@@ -1,0 +1,10 @@
+export const SOURCE_REPOSITORY: 'Dust-Shield';
+export const EDS_K: 0.03;
+export const MAX_POWER_W: 240;
+export const BASE_POWER_W: number;
+export function calculateDustEfficiency(coverage: number): number;
+export function calculateDustPower(coverage: number, peakPowerW?: number): { transmission: number; currentPowerW: number; baselinePowerW: number; recoveredPowerW: number };
+export function getClearingSpeed(voltage?: number, phase?: number): number;
+export function shouldStopCleaning(coverage: number, threshold?: number): boolean;
+export function accumulateRecoveredEnergy(energyWh: number, input: { active: boolean; coverage: number; recoveredPowerW: number }, seconds: number): number;
+export function advanceDust(input: { coverage: number; active: boolean; powered: boolean; voltage?: number; phase?: number }, seconds: number): { coverage: number; active: boolean; removed: number };

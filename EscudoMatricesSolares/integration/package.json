@@ -1,0 +1,11 @@
+{
+  "name": "@selene/dust-shield",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": { "types": "./junior.d.ts", "import": "./junior.js", "default": "./junior.js" },
+    "./junior": { "types": "./junior.d.ts", "import": "./junior.js", "default": "./junior.js" }
+  },
+  "scripts": { "test": "node --test junior.test.js" }
+}

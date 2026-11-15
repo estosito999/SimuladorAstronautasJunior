@@ -1,0 +1,316 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #050816;
+  color: white;
+}
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+#ui {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  max-width: 560px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  font-size: 14px;
+  line-height: 1.35;
+}
+#ui h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+#ui p {
+  margin: 6px 0 0;
+}
+#legend-toggle {
+  margin-top: 8px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+#legend-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.legend.hidden {
+  display: none;
+}
+.legend {
+  margin-top: 8px;
+}
+.legend h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.legend-block {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+}
+.legend-block h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #dbeafe;
+}
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: center;
+}
+.camera-controls {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(8, 12, 24, 0.30);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+  user-select: none;
+  touch-action: none;
+  opacity: 0.58;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+.camera-controls:hover,
+.camera-controls:focus-within {
+  opacity: 0.92;
+  background: rgba(8, 12, 24, 0.46);
+}
+.camera-actions-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.camera-pair {
+  display: flex;
+  gap: 3px;
+}
+.camera-direction-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 30px);
+  grid-template-rows: repeat(3, 30px);
+  grid-template-areas:
+    ". up ."
+    "left center right"
+    ". down .";
+  gap: 3px;
+}
+.camera-control {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease,
+    color 120ms ease, transform 120ms ease;
+}
+.camera-control:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.94);
+}
+.camera-control:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+.camera-control:active {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(0.96);
+}
+.camera-zoom {
+  font-size: 15px;
+}
+.camera-up {
+  grid-area: up;
+}
+.camera-left {
+  grid-area: left;
+}
+.camera-center {
+  grid-area: center;
+  font-size: 15px;
+}
+.camera-right {
+  grid-area: right;
+}
+.camera-down {
+  grid-area: down;
+}
+.camera-free-toggle,
+.settings-button {
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.88);
+  font: inherit;
+  cursor: pointer;
+}
+.camera-free-toggle {
+  min-width: 112px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.camera-free-toggle:hover,
+.settings-button:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+.camera-free-toggle.active {
+  border-color: rgba(147, 197, 253, 0.75);
+  background: rgba(59, 130, 246, 0.22);
+  color: white;
+}
+#music-toggle {
+  margin-top: 8px;
+}
+.start-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 8, 22, 0.52);
+  backdrop-filter: blur(2px);
+}
+.start-menu.closed {
+  display: none;
+}
+.start-panel {
+  width: min(520px, calc(100vw - 40px));
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(8, 12, 24, 0.92);
+  box-sizing: border-box;
+}
+.start-panel h1 {
+  margin: 0;
+  font-size: 24px;
+}
+.start-subtitle {
+  margin: 4px 0 18px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.start-section {
+  margin-top: 16px;
+}
+.start-section h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #dbeafe;
+}
+.planet-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 18px;
+}
+.planet-options label,
+.quality-options label,
+.start-options label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.quality-options {
+  display: flex;
+  gap: 18px;
+}
+.settings-button {
+  width: 34px;
+  margin-top: 8px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  vertical-align: bottom;
+}
+.start-options {
+  display: flex;
+  gap: 22px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.start-panel input {
+  accent-color: #93c5fd;
+}
+.start-button {
+  width: 100%;
+  height: 36px;
+  margin-top: 20px;
+  border: 1px solid rgba(147, 197, 253, 0.55);
+  border-radius: 7px;
+  background: rgba(59, 130, 246, 0.20);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+.start-button:hover {
+  background: rgba(59, 130, 246, 0.30);
+}
+
+.planet-time-controls {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(147, 197, 253, 0.2);
+  border-radius: 12px;
+  background: rgba(8, 12, 24, 0.65);
+  backdrop-filter: blur(5px);
+  user-select: none;
+  touch-action: none;
+}
+.planet-time-controls > span {
+  display: block;
+  margin-bottom: 7px;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: #b5c9e2;
+}
+.planet-time-controls > div { display: flex; gap: 6px; }
+.planet-time-controls button {
+  min-width: 65px;
+  height: 38px;
+  border: 1px solid rgba(147, 197, 253, 0.25);
+  border-radius: 8px;
+  background: rgba(147, 197, 253, 0.08);
+  color: #e2eeff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.planet-time-controls button:hover,
+.planet-time-controls button.active { background: rgba(59, 130, 246, 0.4); }
+.planet-time-controls button:focus-visible { outline: 2px solid #93c5fd; }

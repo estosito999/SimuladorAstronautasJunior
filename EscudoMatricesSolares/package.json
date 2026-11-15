@@ -1,0 +1,9 @@
+{
+  "name": "dust-shield",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Original DustShield demo with a shared local simulation module",
+  "exports": { "./junior": { "types": "./integration/junior.d.ts", "import": "./integration/junior.js" } },
+  "scripts": { "test:integration": "node --test integration/junior.test.js" }
+}

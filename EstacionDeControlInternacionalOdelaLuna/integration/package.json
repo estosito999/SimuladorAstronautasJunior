@@ -1,0 +1,17 @@
+{
+  "name": "@selene/openmct",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Live junior telemetry provider using the original Open MCT metadata manager",
+  "exports": {
+    ".": {
+      "types": "./junior.d.ts",
+      "import": "./junior.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test junior.test.js"
+  }
+}

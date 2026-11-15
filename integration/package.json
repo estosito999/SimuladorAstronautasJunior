@@ -1,0 +1,13 @@
+{
+  "name": "@selene/lunar-e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local shared rover controls and original Lunar-E model for the Selene integration",
+  "exports": {
+    ".": { "types": "./index.d.ts", "import": "./index.js" },
+    "./model": { "types": "./model.d.ts", "import": "./model.js" }
+  },
+  "peerDependencies": { "three": "^0.184.0" },
+  "scripts": { "test": "node --test *.test.js" }
+}

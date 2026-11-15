@@ -25,7 +25,10 @@ import {
   ArrowDown,
   X,
   Presentation,
-  Truck
+  Truck,
+  CircleDot,
+  Layers,
+  ExternalLink
 } from 'lucide-react'
 
 import { createInitialState, metrics, reduce } from './simulation/engine'
@@ -41,6 +44,7 @@ type CameraAction = 'reset' | 'left' | 'right' | 'in' | 'out'
 
 export interface RepoMission {
   id: string
+  number: string
   title: string
   subtitle: string
   folder: string
@@ -57,73 +61,77 @@ export interface RepoMission {
 const MISSIONS: RepoMission[] = [
   {
     id: 'lunar-e',
+    number: '01',
     title: 'Misión de Reconocimiento: Rover Lunar de Exploración',
-    subtitle: 'Navegación en terreno lunar, cinemática y muestreo geológico',
+    subtitle: 'Navegación en terreno lunar, cartografía de superficie y muestreo geológico',
     folder: 'final-project-Lunar-E',
-    url: '#rover',
+    url: '/final-project-Lunar-E/',
     moduleId: 'rover',
     icon: Compass,
     accentColor: '#38bdf8',
-    badge: 'Movilidad Lunar · Rover 3D',
-    description: 'Comanda el vehículo de exploración sobre la superficie lunar. Maniobra sobre regolito con tracción 4x4, orienta la cámara e inspecciona el entorno del polo sur.',
+    badge: 'Movilidad Lunar · Rover',
+    description: 'Comanda el vehículo de exploración sobre la superficie lunar. Maniobra sobre regolito, orienta cámaras panorámicas e inspecciona el entorno orbital del polo sur.',
     highlights: [
-      'Control de tracción y maniobra en terreno escarpado con WASD o flechas',
-      'Cámara orbital y modo de seguimiento dinámico del vehículo',
-      'Muestreo de rocas y retorno a la plataforma de recarga'
+      'Control de tracción y maniobra en terreno escarpado',
+      'Cámaras panorámicas y de seguimiento orbital',
+      'Cartografía de cráteres y zonas de prospección'
     ],
-    tags: ['Geología Lunar', 'Navegación Superficial', 'Cinemática', 'Tracción']
+    tags: ['Geología Lunar', 'Navegación Superficial', 'Muestreo', 'Tracción']
   },
   {
     id: 'habitat-management',
-    title: 'Misión de Gestión y Recursos: Asentamiento Lunar Selene',
-    subtitle: 'Planificación de infraestructura, balance energético y soporte de base',
+    number: '02',
+    title: 'Misión de Gestión y Supervivencia: Asentamientos Planetarios',
+    subtitle: 'Planificación de hábitats, soporte vital y balance de recursos en Luna y Marte',
     folder: 'ZERO-G-Junior-Astronaut-Trainer',
-    url: '#solar',
+    url: '/ZERO-G-Junior-Astronaut-Trainer/',
     moduleId: 'solar',
-    icon: Rocket,
+    icon: Leaf,
     accentColor: '#34d399',
-    badge: 'Gestión de Hábitat · Estación',
-    description: 'Comanda la gestión integral de recursos en la base lunar. Balancea generación fotovoltaica, reserva en baterías y consumo de los subsistemas en el Polo Sur Lunar.',
+    badge: 'Gestión de Hábitat · Misión Interplanetaria',
+    description: 'Comanda la gestión integral y supervivencia de una base humana en entornos extremos. Planifica la infraestructura con presupuesto táctico, balancea soporte vital, energía y reservas de contingencia, y resuelve emergencias ambientales críticas en el Polo Sur Lunar o en Marte.',
     highlights: [
-      'Generación fotovoltaica con ángulo de elevación solar e irradiancia',
-      'Banco de baterías de alta capacidad con integración de Wh en tiempo real',
-      'Matriz de distribución energética hacia hábitat, antenas y plataforma'
+      'Selección de destino táctico: Polo Sur Lunar (0.166 G) o Cañón Marciano (0.379 G)',
+      'Diseño modular de asentamiento: matrices de potencia, soporte vital, blindaje y laboratorios',
+      'Consola de control de vuelo: resolución de alertas ambientales, balance de recursos y bitácora de misión'
     ],
-    tags: ['Gestión de Hábitat', 'Balance de Potencia', 'Baterías', 'Soporte Vital']
+    tags: ['Gestión de Hábitat', 'Supervivencia Planetaria', 'Soporte Vital', 'Toma de Decisiones', 'Luna y Marte']
   },
   {
     id: 'dust-shield',
-    title: 'Misión de Mantenimiento Energético: Escudo Electrodinámico (EDS)',
-    subtitle: 'Mitigación de polvo de regolito mediante escudo de ondas viajeras',
+    number: '03',
+    title: 'Misión de Mantenimiento Energético: Escudo de Matrices Solares',
+    subtitle: 'Mitigación de polvo de regolito mediante escudo electrodinámico (EDS)',
     folder: 'Dust-Shield',
-    url: '#solar',
+    url: '/Dust-Shield/',
     moduleId: 'solar',
     icon: Zap,
     accentColor: '#fbbf24',
     badge: 'Energía Fotovoltaica · EDS',
-    description: 'Supervisa el rendimiento de las matrices solares expuestas al polvo lunar. Activa el escudo electrodinámico para repeler partículas y restaurar el suministro eléctrico.',
+    description: 'Supervisa el rendimiento de las matrices solares expuestas a regolito abrasivo. Activa el escudo electrodinámico para repeler partículas y restaurar el suministro eléctrico.',
     highlights: [
-      'Monitoreo de atenuación exponencial de luz por polvo acumulado',
+      'Monitoreo de atenuación de radiación solar por polvo acumulado',
       'Limpieza electrodinámica por ondas viajeras de alta frecuencia',
-      'Curvas reales de recuperación de potencia y consumo del pulso EDS'
+      'Curvas de recuperación de potencia y consumo de limpieza'
     ],
-    tags: ['Generación Fotovoltaica', 'Escudo Electrodinámico', 'Regolito', 'Mantenimiento']
+    tags: ['Generación Fotovoltaica', 'Escudo Electrodinámico', 'Regolito', 'Potencia']
   },
   {
     id: 'openmct',
+    number: '04',
     title: 'Estación de Control de Vuelo: Enlace de Telemetría (DSN)',
-    subtitle: 'Supervisión de telemetría en tiempo real de 10 canales y exportación CSV',
+    subtitle: 'Monitoreo de telemetría en tiempo real y registro con la Red de Espacio Profundo',
     folder: 'openmct',
-    url: '#comms',
+    url: '/openmct/',
     moduleId: 'comms',
     icon: Radio,
     accentColor: '#a78bfa',
     badge: 'Control de Vuelo · DSN',
-    description: 'Consola operativa estilo NASA adaptada para niños: supervisa en vivo los 10 canales críticos de la estación Selene, analiza gráficos temporales y descarga datos de vuelo.',
+    description: 'Consola operativa estilo NASA para supervisar en vivo los 10 canales críticos de la estación Selene: potencia, almacenamiento, enlace de comunicaciones y exportación de datos.',
     highlights: [
-      'Transmisión en tiempo real de 10 canales de subsistemas con búfer circular',
-      'Alineación azimutal de antena hacia estaciones terrestres DSN a 45°',
-      'Exportación estructurada de registros de vuelo en formato CSV'
+      'Transmisión en tiempo real de 10 canales de subsistemas',
+      'Gráficas de series temporales y estados de alarma',
+      'Exportación estructurada de registros de vuelo en CSV'
     ],
     tags: ['Control de Vuelo', 'Telemetría en Vivo', 'Red DSN', 'Análisis de Datos']
   }
@@ -155,7 +163,8 @@ function lunaTip(s: State, selected: ModuleId) {
 }
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<'simulator' | 'pitch'>('simulator')
+  const [viewMode, setViewMode] = useState<'hub' | 'simulator' | 'pitch'>('hub')
+  const [activeMission, setActiveMission] = useState<RepoMission | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [clock, setClock] = useState('')
 
@@ -269,7 +278,14 @@ export default function App() {
     <div className={`hub-shell ${fullscreen ? 'is-fullscreen' : ''}`}>
       {/* ── BARRA SUPERIOR DE LA ESTACIÓN ESPACIAL ──────────────────────── */}
       <header className="hub-header">
-        <div className="hub-brand" onClick={() => setViewMode('simulator')} style={{ cursor: 'pointer' }}>
+        <div
+          className="hub-brand"
+          onClick={() => {
+            setViewMode('hub')
+            setActiveMission(null)
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="hub-logo">
             <Moon size={22} className="hub-moon-icon" />
             <Sparkles size={12} className="hub-sparkle-icon" />
@@ -279,22 +295,39 @@ export default function App() {
               <span className="hub-title">SELENE</span>
               <span className="hub-title-badge">ASTRONAUTAS JUNIOR</span>
             </div>
-            <span className="hub-tagline">Simulador Educativo Lunar 3D · Estación Unificada</span>
+            <span className="hub-tagline">Centro de Misiones Espaciales · Conexión de Repositorios</span>
           </div>
         </div>
 
         <nav className="hub-nav-tabs">
           <button
-            className={`nav-tab-btn ${viewMode === 'simulator' ? 'active' : ''}`}
-            onClick={() => setViewMode('simulator')}
-            title="Ir a la estación lunar interactiva 3D"
+            className={`nav-tab-btn ${viewMode === 'hub' && !activeMission ? 'active' : ''}`}
+            onClick={() => {
+              setViewMode('hub')
+              setActiveMission(null)
+            }}
+            title="Ir al Centro de Misiones"
           >
-            <Rocket size={16} />
-            <span>Estación Lunar 3D</span>
+            <Compass size={16} />
+            <span>Centro de Misiones</span>
           </button>
           <button
-            className={`nav-tab-btn ${viewMode === 'pitch' ? 'active' : ''}`}
-            onClick={() => setViewMode('pitch')}
+            className={`nav-tab-btn ${viewMode === 'simulator' && !activeMission ? 'active' : ''}`}
+            onClick={() => {
+              setViewMode('simulator')
+              setActiveMission(null)
+            }}
+            title="Ir a las Operaciones de la Base Lunar 3D"
+          >
+            <Rocket size={16} />
+            <span>Operaciones de Base Lunar</span>
+          </button>
+          <button
+            className={`nav-tab-btn ${viewMode === 'pitch' && !activeMission ? 'active' : ''}`}
+            onClick={() => {
+              setViewMode('pitch')
+              setActiveMission(null)
+            }}
             title="Ver presentación y pitch interactivo"
           >
             <Presentation size={16} />
@@ -303,36 +336,244 @@ export default function App() {
         </nav>
 
         <div className="hub-status-bar">
-          <button onClick={() => setDialog('guide')} className="sim-btn-sub" title="Guía y protocolo">
-            <CircleHelp size={15} /> <span>Protocolo</span>
-          </button>
-          <button onClick={() => setDialog('notebook')} className="sim-btn-sub" title="Cuaderno de descubrimientos">
-            <BookOpen size={15} /> <span>Bitácora</span>
-          </button>
-          <button onClick={() => setDialog('reset')} className="sim-btn-sub" title="Reiniciar simulación">
-            <RotateCcw size={15} /> <span>Reiniciar</span>
-          </button>
-          <button
-            onClick={toggleFullscreen}
-            className={`sim-btn-sub sim-btn-fullscreen ${fullscreen ? 'is-active' : ''}`}
-            title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-          >
-            {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            <span>{fullscreen ? 'Restaurar' : 'Pantalla Completa'}</span>
-          </button>
           <div className="status-pill">
             <span className="status-dot-pulse" />
-            <span>100% Integrada</span>
+            <span>5 Misiones Conectadas</span>
           </div>
           <div className="status-pill clock-pill">
             <Terminal size={14} />
-            <span>MET {clock || '12:00:00'}</span>
+            <span>MET {clock || '20:25:33'}</span>
           </div>
         </div>
       </header>
 
-      {/* ── MODO 1: PRESENTACIÓN INTERACTIVA DE PITCH ───────────────────── */}
-      {viewMode === 'pitch' ? (
+      {/* ── VISTA ACTIVA: VISOR EMBEBIDO, HUB, PITCH O SIMULADOR 3D ────── */}
+      {activeMission ? (
+        <div className={`mission-viewer ${fullscreen ? 'is-fullscreen' : ''}`}>
+          <div className="viewer-toolbar">
+            <button className="back-button" onClick={() => setActiveMission(null)}>
+              <ChevronLeft size={16} />
+              <span>Volver al Centro de Misiones</span>
+            </button>
+            <div className="viewer-mission-info">
+              <span className="viewer-mission-dot" style={{ background: activeMission.accentColor }} />
+              <strong>{activeMission.title}</strong>
+              <small>{activeMission.folder}</small>
+            </div>
+            <div className="viewer-actions">
+              {activeMission.moduleId && (
+                <button
+                  className="action-launch-btn"
+                  onClick={() => {
+                    select(activeMission.moduleId!)
+                    setViewMode('simulator')
+                    setActiveMission(null)
+                  }}
+                >
+                  <Rocket size={14} />
+                  <span>Ver en Base Lunar</span>
+                </button>
+              )}
+              <button
+                className="action-icon-btn"
+                title="Abrir en pestaña nueva"
+                onClick={() => window.open(activeMission.url, '_blank')}
+              >
+                <ExternalLink size={16} />
+              </button>
+              <button
+                className="action-icon-btn"
+                title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                onClick={toggleFullscreen}
+              >
+                {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+            </div>
+          </div>
+          <div className="viewer-frame-container">
+            <iframe
+              src={activeMission.url}
+              title={activeMission.title}
+              className="mission-iframe"
+            />
+          </div>
+        </div>
+      ) : viewMode === 'hub' ? (
+        <main className="hub-main">
+          {/* ── MISIÓN PRINCIPAL DESTACADA ── */}
+          <section className="featured-mission-banner">
+            <div className="featured-badge">
+              <Sparkles size={13} />
+              <span>MISIÓN PRINCIPAL DESTACADA</span>
+            </div>
+            <div className="featured-content">
+              <div className="featured-info">
+                <h2>Base Lunar Selene: Centro de Gestión y Operaciones</h2>
+                <p>
+                  Entorno integrado de gestión y supervisión de la base lunar: controla el balance energético
+                  fotovoltaico, maniobra el vehículo de superficie, ejecuta ciclos de limpieza electrodinámica
+                  de celdas y transmite telemetría en tiempo real.
+                </p>
+                <div className="featured-tags">
+                  <span className="tag-chip">Operaciones de Superficie</span>
+                  <span className="tag-chip">Generación Fotovoltaica + Baterías</span>
+                  <span className="tag-chip">Vehículo de Exploración</span>
+                  <span className="tag-chip">Enlace de Telemetría DSN</span>
+                </div>
+              </div>
+              <div className="featured-action">
+                <button
+                  className="btn-launch-featured"
+                  onClick={() => {
+                    setViewMode('simulator')
+                  }}
+                >
+                  <Play size={16} fill="white" />
+                  <span>Ingresar al Centro de Operaciones</span>
+                </button>
+                <button
+                  className="btn-launch-pitch"
+                  onClick={() => {
+                    setViewMode('pitch')
+                  }}
+                >
+                  <Presentation size={16} />
+                  <span>Ver Pitch Interactivo</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* ── REPOSITORIOS Y LABORATORIOS CONECTADOS ── */}
+          <section className="hub-hero">
+            <div className="hero-kicker">
+              <Rocket size={13} />
+              <span>REPOSITORIOS Y LABORATORIOS CONECTADOS</span>
+            </div>
+            <h1>Conecta y Explora Cada Misión</h1>
+            <p>
+              Accede directamente a los entornos de los 4 repositorios espaciales. Puedes explorarlos a
+              pantalla completa dentro de este centro de mando o abrirlos en pestañas independientes.
+            </p>
+          </section>
+
+          {/* ── CUADRÍCULA DE MISIONES ── */}
+          <div className="missions-grid">
+            {MISSIONS.map(m => {
+              const Icon = m.icon
+              return (
+                <article
+                  key={m.id}
+                  className="mission-card"
+                  style={{ '--mission-accent': m.accentColor } as React.CSSProperties}
+                >
+                  <div className="mission-card-top">
+                    <span className="mission-number">{m.number}</span>
+                    <span className="mission-badge">{m.badge}</span>
+                  </div>
+
+                  <div className="mission-header">
+                    <div className="mission-icon-wrap" style={{ color: m.accentColor }}>
+                      <Icon size={26} />
+                    </div>
+                    <div>
+                      <h2>{m.title}</h2>
+                      <span className="mission-subtitle">{m.subtitle}</span>
+                    </div>
+                  </div>
+
+                  <p className="mission-desc">{m.description}</p>
+
+                  <div className="mission-highlights">
+                    <span className="highlights-title">CARACTERÍSTICAS DE LA MISIÓN:</span>
+                    <ul>
+                      {m.highlights.map((h, i) => (
+                        <li key={i}>
+                          <CircleDot size={14} style={{ color: m.accentColor, flexShrink: 0 }} />
+                          <span>{h}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Nombre del repositorio SIN icono de carpeta */}
+                  <span className="mission-folder-pill">{m.folder}</span>
+
+                  <div className="mission-tags">
+                    {m.tags.map(tag => (
+                      <span key={tag} className="tag-chip">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mission-card-actions">
+                    <button
+                      className="btn-connect"
+                      style={{
+                        background: `linear-gradient(135deg, ${m.accentColor}33, ${m.accentColor}18)`,
+                        border: `1px solid ${m.accentColor}99`,
+                        color: '#ffffff',
+                        boxShadow: `0 0 16px ${m.accentColor}22`
+                      }}
+                      onClick={() => {
+                        setActiveMission(m)
+                      }}
+                    >
+                      <Play size={14} fill="currentColor" />
+                      <span>Conectar y Abrir</span>
+                    </button>
+                    <button
+                      className="btn-external"
+                      onClick={() => {
+                        window.open(m.url, '_blank')
+                      }}
+                    >
+                      <ExternalLink size={14} />
+                      <span>Nueva pestaña</span>
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          {/* ── ARQUITECTURA DE REPOSITORIOS LOCALES CONECTADOS ── */}
+          <section className="hub-infra">
+            <div className="infra-header">
+              <Layers size={18} />
+              <h3>Arquitectura de Repositorios Locales Conectados</h3>
+            </div>
+            <div className="infra-grid">
+              <div className="infra-item">
+                <span className="infra-dot" />
+                <strong>final-project-Lunar-E</strong>
+                <code>D:\SimuladorParaAustronautasJunior\final-project-Lunar-E</code>
+              </div>
+              <div className="infra-item">
+                <span className="infra-dot" />
+                <strong>ZERO-G-Junior-Astronaut-Trainer</strong>
+                <code>D:\SimuladorParaAustronautasJunior\ZERO-G-Junior-Astronaut-Trainer</code>
+              </div>
+              <div className="infra-item">
+                <span className="infra-dot" />
+                <strong>Dust-Shield</strong>
+                <code>D:\SimuladorParaAustronautasJunior\Dust-Shield</code>
+              </div>
+              <div className="infra-item">
+                <span className="infra-dot" />
+                <strong>openmct</strong>
+                <code>D:\SimuladorParaAustronautasJunior\openmct</code>
+              </div>
+            </div>
+          </section>
+
+          {/* ── PIE DE PÁGINA ── */}
+          <footer className="hub-footer">
+            <p>✦ Centro de Misión para Astronautas Junior • Todos los repositorios se ejecutan y enlazan localmente en tu equipo.</p>
+          </footer>
+        </main>
+      ) : viewMode === 'pitch' ? (
         <PitchDeck
           missions={MISSIONS}
           onLaunchMission={(m) => {
@@ -353,6 +594,32 @@ export default function App() {
       ) : (
         /* ── MODO 2: SIMULADOR EDUCATIVO LUNAR 3D PRINCIPAL ──────────────── */
         <div className="simulator-container">
+          <div className="simulator-subnav">
+            <div className="simulator-title-badge">
+              <Rocket size={15} />
+              <span>Estación Lunar Selene: Centro de Gestión y Control 3D</span>
+            </div>
+            <div className="sim-quick-actions">
+              <button onClick={() => setDialog('guide')} className="sim-btn-sub" title="Guía y protocolo">
+                <CircleHelp size={15} /> <span>Protocolo</span>
+              </button>
+              <button onClick={() => setDialog('notebook')} className="sim-btn-sub" title="Cuaderno de descubrimientos">
+                <BookOpen size={15} /> <span>Bitácora</span>
+              </button>
+              <button onClick={() => setDialog('reset')} className="sim-btn-sub" title="Reiniciar simulación">
+                <RotateCcw size={15} /> <span>Reiniciar</span>
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className={`sim-btn-sub sim-btn-fullscreen ${fullscreen ? 'is-active' : ''}`}
+                title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              >
+                {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                <span>{fullscreen ? 'Restaurar' : 'Pantalla Completa'}</span>
+              </button>
+            </div>
+          </div>
+
           <main className="simulator-main">
             {/* ENCABEZADO DE MISIÓN */}
             <section className="intro">

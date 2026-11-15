@@ -1,23 +1,4 @@
-# Dependencies
 node_modules/
-*/node_modules/
-
-# Production build outputs
 dist/
-*/dist/
-
-# TypeScript & build caches
 *.tsbuildinfo
-.vite/
-.vite-temp/
-
-# Logs and environment
 *.log
-.DS_Store
-.qa/
-
-# Repositorios de referencia externos (consolidados e integrados nativamente en src/)
-Dust-Shield/
-final-project-Lunar-E/
-ZERO-G-Junior-Astronaut-Trainer/
-openmct/

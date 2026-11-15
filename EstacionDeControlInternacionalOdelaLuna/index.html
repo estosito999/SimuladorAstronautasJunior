@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <base href="/openmct/">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+  <title>NASA Open MCT — Consola de Telemetría Selene</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-root: #060911;
+      --bg-panel: #0d1322;
+      --bg-subtle: #141d33;
+      --border-subtle: #1e2c4a;
+      --border-highlight: #2c4270;
+      --text-main: #e2e8f0;
+      --text-muted: #8b9bb4;
+      --text-dim: #5c6b84;
+      --cyan: #38bdf8;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --purple: #a78bfa;
+    }
+    body {
+      background: var(--bg-root);
+      color: var(--text-main);
+      font-family: 'Inter', system-ui, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER CONDUCTOR DE TIEMPO OPEN MCT ─────────────────────── */
+    .mct-header {
+      height: 48px;
+      background: #080d1a;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .mct-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nasa-meatball {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #0b3d91;
+      border: 1px solid #1e3a8a;
+      display: grid;
+      place-items: center;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+    .mct-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+    }
+    .mct-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--cyan);
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .time-conductor {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+    .mode-pill {
+      background: rgba(52, 211, 153, 0.15);
+      border: 1px solid #34d399;
+      color: #34d399;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 6px #34d399;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .clock-display {
+      color: var(--text-main);
+      background: var(--bg-subtle);
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .mct-actions button {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .mct-actions button:hover {
+      background: var(--border-subtle);
+      color: #fff;
+    }
+
+    /* ── LAYOUT PRINCIPAL ───────────────────────────────────────── */
+    .mct-body {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 48px);
+      overflow: hidden;
+    }
+
+    /* BARRA LATERAL (ÁRBOL DE TELEMETRÍA) */
+    .mct-sidebar {
+      width: 250px;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 12px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border-subtle);
+      text-transform: uppercase;
+    }
+    .tree-list {
+      list-style: none;
+      padding: 8px 0;
+      overflow-y: auto;
+    }
+    .tree-item {
+      padding: 8px 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tree-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: #fff;
+    }
+    .tree-item.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--cyan);
+      border-left: 3px solid var(--cyan);
+      font-weight: 600;
+    }
+
+    /* CONTENEDOR CENTRAL DE DATOS */
+    .mct-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    /* MÉTRICAS EN VIVO (GAUGES) */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .metric-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .metric-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .metric-value {
+      font-size: 24px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #ffffff;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .metric-unit {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    .metric-status {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      align-self: flex-start;
+      margin-top: 4px;
+    }
+    .status-nominal { background: rgba(52, 211, 153, 0.15); color: var(--green); }
+    .status-warning { background: rgba(251, 191, 36, 0.15); color: var(--amber); }
+
+    /* GRÁFICA DE SERIES TEMPORALES */
+    .plot-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 230px;
+    }
+    .plot-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .plot-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+    .plot-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-color {
+      width: 10px;
+      height: 3px;
+      border-radius: 1px;
+    }
+    .plot-canvas-wrap {
+      flex: 1;
+      position: relative;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      min-height: 160px;
+    }
+    canvas#plotCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* TABLA DE TRANSMISIÓN DE TELEMETRÍA */
+    .table-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      min-height: 200px;
+    }
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .table-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .telemetry-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-align: left;
+    }
+    .telemetry-table th {
+      color: var(--text-dim);
+      font-weight: 600;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 10px;
+      letter-spacing: 0.8px;
+    }
+    .telemetry-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+    .telemetry-table tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+  <header class="mct-header">
+    <div class="mct-brand">
+      <div class="nasa-meatball">NASA</div>
+      <span class="mct-title">OPEN MCT</span>
+      <span class="mct-badge">SELENE OPS v4.3</span>
+    </div>
+
+    <div class="time-conductor">
+      <div class="mode-pill">
+        <span class="pulse-dot"></span>
+        <span>REAL-TIME LIVE</span>
+      </div>
+      <div class="clock-display" id="clock-display">
+        UTC 2026-11-14 16:35:00
+      </div>
+    </div>
+
+    <div class="mct-actions">
+      <button onclick="exportCSV()">📥 Descargar Telemetría CSV</button>
+    </div>
+  </header>
+
+  <div class="mct-body">
+    <aside class="mct-sidebar">
+      <div class="sidebar-header">Canales de Telemetría</div>
+      <ul class="tree-list">
+        <li class="tree-item active">📊 Centro de Misión (Todos)</li>
+        <li class="tree-item">☀️ Paneles Solares (EDS)</li>
+        <li class="tree-item">⚡ Batería y Red Eléctrica</li>
+        <li class="tree-item">🚗 Enlace de Telemetría Rover</li>
+        <li class="tree-item">📡 Antena y DSN Tierra</li>
+        <li class="tree-item">📜 Registro Histórico</li>
+      </ul>
+    </aside>
+
+    <main class="mct-content">
+      <div class="metrics-row">
+        <div class="metric-card">
+          <span class="metric-title">Producción Solar</span>
+          <span class="metric-value" id="val-solar">184 <span class="metric-unit">W</span></span>
+          <span class="metric-status status-nominal">NOMINAL</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Demanda de Base</span>
+          <span class="metric-value" id="val-demand">92 <span class="metric-unit">W</span></span>
+          <span class="metric-status status-nominal">NOMINAL</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Batería de Estación</span>
+          <span class="metric-value" id="val-battery">86 <span class="metric-unit">%</span></span>
+          <span class="metric-status status-nominal">CARGANDO</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Batería del Rover</span>
+          <span class="metric-value" id="val-rover">78 <span class="metric-unit">%</span></span>
+          <span class="metric-status status-nominal">ONLINE</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Enlace a Tierra</span>
+          <span class="metric-value" id="val-signal">94 <span class="metric-unit">%</span></span>
+          <span class="metric-status status-nominal">CONECTADO</span>
+        </div>
+      </div>
+
+      <div class="plot-panel">
+        <div class="plot-header">
+          <span class="plot-title">Series Temporales de Potencia y Almacenamiento (Últimos 60s)</span>
+          <div class="plot-legend">
+            <div class="legend-item"><span class="legend-color" style="background: #38bdf8"></span><span>Producción Solar (W)</span></div>
+            <div class="legend-item"><span class="legend-color" style="background: #f87171"></span><span>Consumo de Base (W)</span></div>
+            <div class="legend-item"><span class="legend-color" style="background: #34d399"></span><span>Batería (%)</span></div>
+          </div>
+        </div>
+        <div class="plot-canvas-wrap">
+          <canvas id="plotCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="table-panel">
+        <div class="table-header">
+          <span class="table-title">Registro en Tiempo Real de Telemetría (NASA 10-Channel Provider)</span>
+          <span style="font-size: 11px; color: var(--text-dim); font-family: monospace;">Frecuencia: 1.0 Hz · 10 canales activos</span>
+        </div>
+        <table class="telemetry-table">
+          <thead>
+            <tr>
+              <th>CANAL ID</th>
+              <th>PARÁMETRO</th>
+              <th>VALOR ACTUAL</th>
+              <th>UNIDAD</th>
+              <th>ESTADO</th>
+              <th>MARCA DE TIEMPO</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- Rellenado dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ── CANALES DE TELEMETRÍA JUNIOR ─────────────────────────────
+    const CHANNELS = [
+      { id: 'solar.production', name: 'Producción Solar', unit: 'W', base: 180, var: 15, status: 'NOMINAL' },
+      { id: 'station.demand', name: 'Consumo de Base', unit: 'W', base: 95, var: 8, status: 'NOMINAL' },
+      { id: 'station.battery', name: 'Batería de Estación', unit: '%', base: 86, var: 1, status: 'NOMINAL' },
+      { id: 'rover.battery', name: 'Batería del Rover', unit: '%', base: 78, var: 2, status: 'NOMINAL' },
+      { id: 'comms.signal', name: 'Señal con la Tierra', unit: '%', base: 94, var: 4, status: 'NOMINAL' },
+      { id: 'solar.dust', name: 'Cobertura de Polvo EDS', unit: '%', base: 18, var: 3, status: 'NOMINAL' },
+      { id: 'rover.distance', name: 'Distancia Recorrida', unit: 'm', base: 142, var: 5, status: 'NOMINAL' },
+      { id: 'station.balance', name: 'Balance Neto de Red', unit: 'W', base: 85, var: 10, status: 'NOMINAL' }
+    ];
+
+    const historyData = {
+      solar: Array(40).fill(180),
+      demand: Array(40).fill(95),
+      battery: Array(40).fill(86)
+    };
+
+    // ── ACTUALIZACIÓN DE HORA Y DATOS ────────────────────────────
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock-display').innerText = 'UTC ' + now.toISOString().replace('T', ' ').slice(0, 19);
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function tickTelemetry() {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+      const nowStr = new Date().toISOString().slice(11, 19);
+
+      CHANNELS.forEach(ch => {
+        const val = Math.round(ch.base + (Math.random() - 0.5) * ch.var);
+
+        if (ch.id === 'solar.production') {
+          document.getElementById('val-solar').innerHTML = `${val} <span class="metric-unit">W</span>`;
+          historyData.solar.push(val);
+          historyData.solar.shift();
+        }
+        if (ch.id === 'station.demand') {
+          document.getElementById('val-demand').innerHTML = `${val} <span class="metric-unit">W</span>`;
+          historyData.demand.push(val);
+          historyData.demand.shift();
+        }
+        if (ch.id === 'station.battery') {
+          document.getElementById('val-battery').innerHTML = `${val} <span class="metric-unit">%</span>`;
+          historyData.battery.push(val);
+          historyData.battery.shift();
+        }
+        if (ch.id === 'rover.battery') {
+          document.getElementById('val-rover').innerHTML = `${val} <span class="metric-unit">%</span>`;
+        }
+        if (ch.id === 'comms.signal') {
+          document.getElementById('val-signal').innerHTML = `${val} <span class="metric-unit">%</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="color: var(--cyan)">${ch.id}</td>
+          <td><strong>${ch.name}</strong></td>
+          <td style="font-weight: 700">${val}</td>
+          <td style="color: var(--text-dim)">${ch.unit}</td>
+          <td><span class="metric-status status-nominal">${ch.status}</span></td>
+          <td style="color: var(--text-dim)">${nowStr}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      drawPlot();
+    }
+
+    // ── DIBUJAR GRÁFICA DE LÍNEAS EN TIEMPO REAL ──────────────────
+    const canvas = document.getElementById('plotCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+      drawPlot();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawPlot() {
+      if (!canvas.width || !canvas.height) {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+      }
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Rejilla
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let y = 0; y < h; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      function plotSeries(arr, maxVal, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < arr.length; i++) {
+          const x = (i / (arr.length - 1)) * w;
+          const y = h - (arr[i] / maxVal) * (h - 20) - 10;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      plotSeries(historyData.solar, 240, '#38bdf8');
+      plotSeries(historyData.demand, 240, '#f87171');
+      plotSeries(historyData.battery, 100, '#34d399');
+    }
+
+    setTimeout(resizeCanvas, 50);
+    setInterval(tickTelemetry, 1500);
+    tickTelemetry();
+
+    function exportCSV() {
+      let csv = 'Timestamp,Channel,Name,Value,Unit\n';
+      const now = new Date().toISOString();
+      CHANNELS.forEach(ch => {
+        csv += `${now},${ch.id},${ch.name},${ch.base},${ch.unit}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `openmct-telemetry-${Date.now()}.csv`;
+      a.click();
+    }
+  </script>
+</body>
+</html>

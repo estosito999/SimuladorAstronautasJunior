@@ -1,10 +1,12 @@
-﻿# SimuladorParaAstronautasJunior — proyecto integrado
+﻿# SimuladorParaAstronautasJunior — Estación Selene
 
-Este directorio es un **workspace npm que conecta los cuatro repositorios locales con una aplicación React + TypeScript + React Three Fiber + Three.js**. Los repositorios se modificaron para compartir código con el simulador; ya no son solamente referencias de diseño.
+Simulador educativo 3D en español para niñas y niños de 7 a 12 años. **LUNA** acompaña la exploración de equipos que comparten energía y datos, sin supervivencia ni puntuaciones.
 
-## Ejecutar desde esta carpeta
+Esta aplicación **depende de los cuatro repositorios vecinos**. Sus paquetes `integration/` exportan código real que también utilizan los proyectos originales. Se modificaron esos repositorios para compartir funciones y modelos; esta carpeta ya no es un proyecto autónomo.
 
-Requiere Node.js **22.12 o posterior**, npm y un navegador con WebGL 2.
+## Ejecutar
+
+Instala y ejecuta desde la raíz del workspace, conservando las cinco carpetas:
 
 ```powershell
 cd D:\SimuladorParaAustronautasJunior
@@ -12,31 +14,42 @@ npm install
 npm run dev
 ```
 
-```powershell
-npm test
-npm run build
-npm run preview
-```
+Necesitas Node.js **22.12 o posterior**, npm y WebGL 2 para la escena. `npm test` ejecuta las pruebas de las integraciones y del motor; `npm run build` comprueba TypeScript y genera `SimuladorParaAstronautasJunior/dist/`; `npm run preview` sirve esa compilación localmente.
 
-`dev`, `build` y `preview` ejecutan la aplicación de `SimuladorParaAstronautasJunior/`. `test` ejecuta las pruebas de los cuatro paquetes de integración y las del motor. La compilación se genera en `SimuladorParaAstronautasJunior/dist/`. Abre la URL HTTP que muestre Vite.
+## Qué aporta cada repositorio
 
-## Repositorios conectados
-
-| Paquete local | Código compartido que usa el simulador |
+| Dependencia | Uso real |
 | --- | --- |
-| `@selene/lunar-e` | Modelo original del rover, movimiento y utilidades de cámara de `final-project-Lunar-E` |
-| `@selene/zero-g` | Terreno procedural, generación y balance de batería de `ZERO-G-Junior-Astronaut-Trainer` |
-| `@selene/dust-shield` | Atenuación solar por polvo y limpieza de `Dust-Shield` |
-| `@selene/openmct` | Gestor original de metadatos y proveedor de telemetría con histórico y suscripciones de `openmct` |
+| `@selene/lunar-e` | Rover original, movimiento y límites de cámara |
+| `@selene/zero-g` | Terreno original y ecuaciones compartidas de generación y batería |
+| `@selene/dust-shield` | Eficiencia solar exponencial y limpieza basada en su modelo compartido |
+| `@selene/openmct` | `TelemetryMetadataManager` original, diez canales, solicitudes históricas y suscripciones |
 
-Cada repositorio contiene un paquete `integration/`. Los cinco workspaces —aplicación y cuatro integraciones— se enlazan localmente; sus fuentes deben permanecer juntas. La instalación se coordina con el `package-lock.json` de esta raíz. Los paquetes ligeros comparten las funciones seleccionadas sin iniciar cuatro aplicaciones ni instalar todos sus toolchains antiguos.
+Las dependencias `file:../…/integration` enlazan las fuentes vecinas. Vite resuelve una sola instalación compartida de React y Three.js. La interfaz principal es React; el proveedor de telemetría también ofrece un plugin para una instancia completa de Open MCT, sin montar esa interfaz completa en este prototipo.
 
-## Dispositivos interconectados
+## Experimenta con una red de equipos
 
-Los paneles alimentan la batería y los equipos de la estación. La plataforma recarga al rover; su radio comparte observaciones con la base; la antena transmite una instantánea de esas observaciones y del estado de los equipos. Los enlaces eléctricos y de datos se pueden interrumpir para observar sus consecuencias. El polvo y la limpieza cambian la potencia disponible para toda la red.
+- **Energía:** cambia luz e inclinación, añade polvo y limpia. La producción modifica la batería que alimenta los demás equipos.
+- **Rover:** conduce, recoge observaciones, regresa y recarga. Moverse cerca de los paneles puede añadir polvo; recargar aumenta el consumo de la estación.
+- **Comunicaciones:** conecta la antena, orienta la señal y transmite un informe local con datos de los equipos y observaciones recibidas.
+- **Conexiones:** abre o cierra los enlaces paneles–base, base–plataforma, base–antena y radio del rover. Los enlaces eléctricos y de datos tienen consecuencias diferentes.
+- **Supervisión:** consulta métricas, histórico y operaciones; descarga las muestras de telemetría como CSV.
 
-La experiencia está dirigida a niños de 7 a 12 años. LUNA explica los experimentos con mensajes programados, sin supervivencia ni puntuaciones. Todos los datos y mensajes son simulados localmente.
+Con la radio interrumpida, el rover conserva observaciones pendientes. Al restablecerla puede compartirlas con la estación. Un informe transmitido guarda una instantánea del estado: los cambios posteriores no reescriben lo ya enviado.
 
-Consulta [la guía de la aplicación](SimuladorParaAstronautasJunior/README.md), [la arquitectura](SimuladorParaAstronautasJunior/docs/ARQUITECTURA.md), [el análisis y los cambios en los repositorios](SimuladorParaAstronautasJunior/docs/ANALISIS_REPOSITORIOS.md), [los avisos de licencia](SimuladorParaAstronautasJunior/THIRD_PARTY_NOTICES.md) y [los resultados de verificación](SimuladorParaAstronautasJunior/docs/VERIFICACION.md).
+Selecciona equipos desde la interfaz o la escena. Arrastra para girar la cámara y usa la rueda para acercarte; hay botones equivalentes y seguimiento del rover. Mantén los botones de dirección o usa WASD/flechas cuando la escena tenga el foco. Tab recorre los controles.
 
-Los archivos previos `src/`, `public/` y `dist/` de esta raíz se conservan como versión anterior; los scripts actuales utilizan la aplicación integrada de la subcarpeta. La integración local no añade una licencia general a Lunar-E o Dust-Shield ni determina permisos de publicación de sus recursos.
+## Alcance didáctico y datos
+
+La escena combina el rover original de Lunar-E, el terreno de ZERO-G y componentes de la estación. Las fórmulas se adaptan a un ejercicio: estación de 100 Wh, rover de 30 Wh y tiempo energético acelerado ×60. El ángulo ideal de 45° es un objetivo de la actividad; el coeficiente de polvo de Dust-Shield es un parámetro de su demo, sin calibración científica verificada.
+
+LUNA utiliza mensajes programados. La antena y su informe son simulaciones locales: no se comunican con equipos reales, NASA ni servicios de IA. No hay cuentas ni guardado entre recargas. El CSV se crea en el navegador con el histórico disponible.
+
+## Documentación
+
+- [Análisis de fuentes y matriz de integración](docs/ANALISIS_REPOSITORIOS.md)
+- [Arquitectura y conexiones](docs/ARQUITECTURA.md)
+- [Licencias, procedencia y modificaciones](THIRD_PARTY_NOTICES.md)
+- [Resultados y límites de verificación](docs/VERIFICACION.md)
+
+La versión integrada requiere comprobar instalación, pruebas, compilación y renderizado con sus dependencias locales; los resultados se mantienen en `VERIFICACION.md`. El prototipo anterior y esta integración tienen alcances de verificación diferentes.
