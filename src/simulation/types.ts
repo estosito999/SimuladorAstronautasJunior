@@ -57,6 +57,12 @@ export interface State {
   completed: ModuleId[];
   activeGroundStation?: 'madrid' | 'goldstone' | 'canberra';
   issTelemetryActive?: boolean;
+  edsVoltage: number;
+  edsFrequency: number;
+  edsResonance: number;
+  edsEmergency: boolean;
+  edsScore: number;
+  roverAutopilot: boolean;
   events: { id: number; time: number; text: string }[];
   history: Sample[];
 }
@@ -69,6 +75,10 @@ export type Action =
   | { type: 'panel-angle'; value: number }
   | { type: 'add-dust' }
   | { type: 'clean' }
+  | { type: 'eds-set-tuning'; voltage?: number; frequency?: number }
+  | { type: 'eds-trigger-emergency' }
+  | { type: 'eds-fire-pulse' }
+  | { type: 'rover-autopilot-toggle' }
   | { type: 'rover-drive'; forward: number; turn: number }
   | { type: 'rover-stop' }
   | { type: 'rover-return' }

@@ -285,19 +285,22 @@ export default function App() {
     const down = (event: KeyboardEvent) => {
       const k = event.key.toLowerCase()
       const live = currentState.current
-      if (document.activeElement !== sceneRef.current || selected !== 'rover' || live.paused || live.roverMode === 'returning' || live.roverMode === 'charging') return
-      const jointKeys = { q: ['yaw', -4], e: ['yaw', 4], r: ['shoulder', 4], f: ['shoulder', -4], t: ['elbow', 4], g: ['elbow', -4] } as const
-      if (k in jointKeys) {
-        event.preventDefault()
-        const [joint, change] = jointKeys[k as keyof typeof jointKeys]
-        dispatch({ type: 'rover-arm', joint, value: live.roverArm[joint] + change })
-        return
-      }
-      const sampleKeys = { ' ': 'rover-collect', b: 'rover-stow', c: 'rover-gripper', x: 'rover-arm-reset' } as const
-      if (k in sampleKeys) {
-        event.preventDefault()
-        if (!event.repeat) dispatch({ type: sampleKeys[k as keyof typeof sampleKeys] })
-        return
+      const isInput = ['input', 'textarea'].includes((document.activeElement?.tagName || '').toLowerCase())
+      if (isInput || viewMode !== 'simulator' || live.paused || live.roverMode === 'returning' || live.roverMode === 'charging') return
+      if (selected === 'rover') {
+        const jointKeys = { q: ['yaw', -4], e: ['yaw', 4], r: ['shoulder', 4], f: ['shoulder', -4], t: ['elbow', 4], g: ['elbow', -4] } as const
+        if (k in jointKeys) {
+          event.preventDefault()
+          const [joint, change] = jointKeys[k as keyof typeof jointKeys]
+          dispatch({ type: 'rover-arm', joint, value: live.roverArm[joint] + change })
+          return
+        }
+        const sampleKeys = { ' ': 'rover-collect', b: 'rover-stow', c: 'rover-gripper', x: 'rover-arm-reset' } as const
+        if (k in sampleKeys) {
+          event.preventDefault()
+          if (!event.repeat) dispatch({ type: sampleKeys[k as keyof typeof sampleKeys] })
+          return
+        }
       }
       if (!allowed.includes(k)) return
       event.preventDefault()

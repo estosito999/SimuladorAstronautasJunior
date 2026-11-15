@@ -1,6 +1,6 @@
 import type { Action, ModuleId, Sample, State } from './types';
 import { calculateStationPower, integrateBatteryPct } from './solarModel';
-import { calculateDustEfficiency, advanceDust } from './dustModel';
+import { calculateDustEfficiency, advanceDust, calculateEdsResonance } from './dustModel';
 import { advanceRover } from './roverModel';
 import { ARM_LIMITS, DEFAULT_ROVER_ARM, getRockPickupStatus, LUNAR_ROCKS, ROVER_BOUNDS } from './roverExploration';
 
@@ -92,6 +92,12 @@ export function createInitialState(): State {
     lastRoverTelemetry: { time: 0, battery: 76, distance: 0, position: [...DOCK] },
     activeGroundStation: 'madrid',
     issTelemetryActive: true,
+    edsVoltage: 1250,
+    edsFrequency: 60,
+    edsResonance: calculateEdsResonance(1250, 60),
+    edsEmergency: false,
+    edsScore: 0,
+    roverAutopilot: false,
     events: [{ id: 1, time: 0, text: 'LUNA: ¡Bienvenido! Vamos a cuidar juntos nuestra estación lunar.' }],
     history: [],
   };
@@ -115,15 +121,50 @@ function advance(original: State, dt: number): State {
     if (!before.powered) {
       s = record({ ...s, cleaning: false }, 'LUNA: La limpieza espera energía. Enciende los paneles y busca la luz.');
     } else {
-      s.dust = advanceDust({ coverage: s.dust, active: true, powered: before.powered }, dt).coverage;
+      const isResonant = s.edsResonance >= 75;
+      const speedMultiplier = isResonant ? 1.6 : 1.0;
+      s.dust = advanceDust({
+        coverage: s.dust,
+        active: true,
+        powered: before.powered,
+        voltage: s.edsVoltage,
+        phase: 3,
+      }, dt * speedMultiplier).coverage;
       if (s.dust <= 0.000001) {
-        s = record({ ...s, dust: 0, cleaning: false }, 'LUNA: ¡Paneles limpios! Ahora la luz llega a sus celdas solares.');
+        s = record({
+          ...s,
+          dust: 0,
+          cleaning: false,
+          edsEmergency: false,
+          edsScore: Math.max(s.edsScore, isResonant ? 3 : 2),
+        }, 'LUNA: ¡Paneles limpios! Ahora la luz llega a sus celdas solares.');
       }
     }
   }
   if (s.dust === 0 && metrics(s).production > 0) s = complete(s, 'solar');
 
-  if (s.roverMode === 'driving') {
+  if (s.roverAutopilot && s.roverMode === 'driving') {
+    if (s.roverBattery <= 12) {
+      s = record({ ...s, roverAutopilot: false, roverMode: 'returning', roverDrive: { forward: 0, turn: 0 } },
+        'LUNA: Reserva del rover baja. Deteniendo patrulla para volver a la base.');
+    } else {
+      const patrolSpeed = 1.6;
+      const patrolRadiusX = 7.5;
+      const patrolRadiusZ = 5.5;
+      const patrolAngle = (s.elapsed * 0.35) % (Math.PI * 2);
+      const nextX = Math.sin(patrolAngle) * patrolRadiusX;
+      const nextZ = 1.5 + Math.cos(patrolAngle) * patrolRadiusZ;
+      const targetHeading = patrolAngle + Math.PI / 2;
+      const moved = patrolSpeed * dt;
+      s = {
+        ...s,
+        roverPosition: [nextX, nextZ],
+        roverHeading: targetHeading,
+        roverDistance: s.roverDistance + moved,
+        roverBattery: clamp(s.roverBattery - energyPct(DRIVE_LOAD_W * 0.7, dt, ROVER_CAPACITY_WH), 0, 100),
+      };
+    }
+  } else if (s.roverMode === 'driving') {
     const distanceHome = Math.hypot(s.roverPosition[0], s.roverPosition[1] - 5);
     const reserveNeeded = energyPct(DRIVE_LOAD_W, distanceHome / ROVER_SPEED, ROVER_CAPACITY_WH) + 6;
     if (s.roverBattery <= Math.max(12, reserveNeeded)) {
@@ -233,6 +274,64 @@ export function reduce(s: State, action: Action): State {
       if (s.dust === 0) return record(s, 'LUNA: Estos paneles ya están limpios.');
       if (!metrics({ ...s, cleaning: true }).powered) return record(s, 'LUNA: Primero necesitamos energía para limpiar. Conecta los paneles y aumenta la luz.');
       return record({ ...s, cleaning: true }, 'LUNA: Activamos el limpiador eléctrico. Usa energía y retira el polvo.');
+    }
+    case 'eds-set-tuning': {
+      const edsVoltage = clamp(action.voltage ?? s.edsVoltage, 500, 2000);
+      const edsFrequency = clamp(action.frequency ?? s.edsFrequency, 10, 100);
+      const edsResonance = calculateEdsResonance(edsVoltage, edsFrequency);
+      const next = { ...s, edsVoltage, edsFrequency, edsResonance };
+      if (edsResonance >= 85) {
+        return recordOnce(next, '⚡ LUNA: ¡Acoplamiento de resonancia óptimo! El polvo vibrará con máxima amplitud electrostática.');
+      }
+      return next;
+    }
+    case 'eds-trigger-emergency': {
+      const nextDust = clamp(Math.max(s.dust + 35, 65), 0, 100);
+      return record({
+        ...s,
+        dust: nextDust,
+        edsEmergency: true,
+        roverAutopilot: true,
+        roverMode: 'driving',
+        roverDrive: { forward: 1, turn: 0.2 },
+      }, '🚨 LUNA: ¡ALERTA DE REGOLITO! Una nube cubrió las celdas solares. El rover patrulla la base. ¡Sintoniza la frecuencia de resonancia y dispara el pulso de plasma!');
+    }
+    case 'eds-fire-pulse': {
+      if (s.dust <= 0) return record(s, 'LUNA: Los paneles solares ya están relucientes y limpios.');
+      if (!metrics({ ...s, cleaning: true }).powered) {
+        return record(s, 'LUNA: No hay energía para el pulso EDS. Conecta los paneles y la batería.');
+      }
+      const isOptimal = s.edsResonance >= 75;
+      const reduction = isOptimal ? 42 : 18;
+      const nextDust = clamp(s.dust - reduction, 0, 100);
+      const finished = nextDust <= 0;
+      const score = isOptimal ? 3 : 2;
+      return record({
+        ...s,
+        dust: nextDust,
+        cleaning: !finished,
+        edsEmergency: !finished && s.edsEmergency,
+        edsScore: Math.max(s.edsScore, score),
+      }, isOptimal
+        ? '⚡ LUNA: ¡DESCARGA DE PLASMA EN RESONANCIA! Las ondas electrostáticas expulsan el regolito al espacio.'
+        : 'LUNA: Pulso parcial emitido. Ajusta la frecuencia más cerca de 60 Hz y el voltaje a 1500 V para lograr resonancia total.');
+    }
+    case 'rover-autopilot-toggle': {
+      const nextAutopilot = !s.roverAutopilot;
+      if (nextAutopilot) {
+        return record({
+          ...s,
+          roverAutopilot: true,
+          roverMode: 'driving',
+          roverDrive: { forward: 1, turn: 0.15 },
+        }, '🚗 LUNA: Autopiloto de patrulla activado. El rover recorre el perímetro de la base lunar.');
+      }
+      return record({
+        ...s,
+        roverAutopilot: false,
+        roverDrive: { forward: 0, turn: 0 },
+        roverMode: 'parked',
+      }, 'LUNA: Autopiloto en pausa. El rover se detiene en su posición actual.');
     }
     case 'rover-drive': {
       const forward = clamp(action.forward, -1, 1, 0);

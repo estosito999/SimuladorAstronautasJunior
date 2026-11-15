@@ -41,6 +41,18 @@ export function getClearingSpeed(voltage = 1250, phase = 3): number {
   return (clamp(voltage, 0, 2000) / 2000) * multiplier * 0.06;
 }
 
+/**
+ * Cálculo del índice de acoplamiento y resonancia electrodinámica de Coulomb (0-100%).
+ * Resonancia óptima calibrada para regolito lunar: 60 Hz y 1500 V.
+ */
+export function calculateEdsResonance(voltage = 1250, frequency = 60): number {
+  const fDiff = Math.abs(clamp(frequency, 10, 100) - 60);
+  const vDiff = Math.abs(clamp(voltage, 500, 2000) - 1500);
+  const fScore = Math.max(0, 1 - fDiff / 25);
+  const vScore = Math.max(0, 1 - vDiff / 500);
+  return Math.round(fScore * vScore * 100);
+}
+
 export function shouldStopCleaning(coverage: number, threshold = 1): boolean {
   return clamp(coverage, 0, 100) <= clamp(threshold, 0, 100);
 }

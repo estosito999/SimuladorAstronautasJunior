@@ -18,6 +18,7 @@ interface SolarPanelsProps {
 function Panel({ state, offset }: { state: State; offset: number }) {
   const tilt = useRef<THREE.Group>(null);
   const broom = useRef<THREE.Mesh>(null);
+  const plasmaPlane = useRef<THREE.Mesh>(null);
 
   useFrame((_, dt) => {
     if (tilt.current) {
@@ -29,10 +30,17 @@ function Panel({ state, offset }: { state: State; offset: number }) {
       );
     }
     if (broom.current) {
-      broom.current.visible = state.cleaning;
-      broom.current.position.z = Math.sin(state.elapsed * 3) * 0.95;
+      broom.current.visible = state.cleaning || (state.edsResonance > 80 && state.dust > 0);
+      // Onda viajera electrodinámica trifásica barriendo la celda
+      broom.current.position.z = -0.95 + ((state.elapsed * 3.5) % 1.9);
+    }
+    if (plasmaPlane.current) {
+      plasmaPlane.current.visible = state.cleaning || (state.edsResonance > 75 && state.dust > 0);
     }
   });
+
+  const isResonant = state.edsResonance >= 75;
+  const isHighFreq = state.edsFrequency >= 50;
 
   return (
     <group position={[0, 0, offset]}>
@@ -79,27 +87,72 @@ function Panel({ state, offset }: { state: State; offset: number }) {
             depthWrite={false}
           />
         </mesh>
-        {/* Partículas de polvo de regolito acumuladas */}
-        {Array.from({ length: 18 }, (_, index) => (
-          <mesh
-            key={index}
-            position={[-1.5 + ((index * 0.69) % 3), 0.11, -1 + ((index * 0.37) % 2)]}
-            scale={0.03 + state.dust / 1800}
-            visible={state.dust > index * 5}
-          >
-            <dodecahedronGeometry args={[1, 0]} />
-            <meshStandardMaterial color="#b7aaa3" roughness={1} />
-          </mesh>
-        ))}
-        {/* Barra emisora del Escudo Electrodinámico (EDS) */}
-        <mesh ref={broom} position={[0, 0.15, 0]} visible={state.cleaning}>
-          <boxGeometry args={[3.4, 0.06, 0.12]} />
-          <meshStandardMaterial color={MINT} emissive={MINT} emissiveIntensity={0.5} />
+
+        {/* Manto de Plasma Electrodinámico de Resonancia */}
+        <mesh ref={plasmaPlane} position={[0, 0.11, 0]} visible={state.cleaning}>
+          <boxGeometry args={[3.32, 0.015, 2.24]} />
+          <meshStandardMaterial
+            color={isResonant ? '#00f2fe' : '#a855f7'}
+            emissive={isResonant ? '#00f2fe' : '#9333ea'}
+            emissiveIntensity={state.cleaning ? 0.75 : 0.3}
+            transparent
+            opacity={state.cleaning ? 0.42 : 0.2}
+            depthWrite={false}
+          />
         </mesh>
+
+        {/* Partículas dinámicas de regolito en levitación electrostática */}
+        {Array.from({ length: 28 }, (_, index) => {
+          const baseCol = (index % 7) - 3;
+          const baseRow = Math.floor(index / 7) - 1.5;
+          const jitter = state.cleaning || (state.edsResonance > 50 && state.dust > 0)
+            ? Math.sin(state.elapsed * 24 + index * 1.5) * (isResonant ? 0.045 : 0.02)
+            : 0;
+          const levitation = state.cleaning ? 0.05 + Math.sin(state.elapsed * 6 + index) * 0.08 : 0;
+          const posX = baseCol * 0.45 + jitter;
+          const posY = 0.11 + levitation;
+          const posZ = baseRow * 0.52 + (state.cleaning ? -0.15 : 0);
+
+          return (
+            <mesh
+              key={index}
+              position={[posX, posY, posZ]}
+              scale={0.032 + state.dust / 1900}
+              visible={state.dust > index * 3}
+            >
+              <dodecahedronGeometry args={[1, 0]} />
+              <meshStandardMaterial
+                color={state.cleaning && isResonant ? '#38bdf8' : '#b7aaa3'}
+                emissive={state.cleaning && isResonant ? '#0284c7' : '#000000'}
+                emissiveIntensity={state.cleaning ? 0.5 : 0}
+                roughness={1}
+              />
+            </mesh>
+          );
+        })}
+
+        {/* Barra emisora y electrodo de onda viajera EDS */}
+        <mesh ref={broom} position={[0, 0.14, 0]} visible={state.cleaning}>
+          <boxGeometry args={[3.38, 0.05, 0.1]} />
+          <meshStandardMaterial
+            color={isResonant ? '#38bdf8' : MINT}
+            emissive={isResonant ? '#00e5ff' : MINT}
+            emissiveIntensity={isResonant ? 0.9 : 0.5}
+          />
+        </mesh>
+
+        {/* Destello de celda impecable cuando dust = 0 */}
+        {state.dust === 0 && (
+          <mesh position={[0, 0.13, 0]}>
+            <sphereGeometry args={[0.08, 8, 8]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+        )}
+
         {/* Indicador LED de estado del panel */}
         <mesh position={[1.55, 0.12, 1.03]}>
           <sphereGeometry args={[0.055, 8, 6]} />
-          <meshBasicMaterial color={state.solarOn ? MINT : ORANGE} />
+          <meshBasicMaterial color={state.solarOn ? (isHighFreq ? '#38bdf8' : MINT) : ORANGE} />
         </mesh>
       </group>
     </group>

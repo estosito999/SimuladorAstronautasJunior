@@ -3,6 +3,7 @@ import { Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BatteryCharging, C
 import type { Action, ModuleId, State } from '../simulation/types'
 import { DOCK, metrics } from '../simulation/engine'
 import { ARM_LIMITS, getNearestRock, getRockPickupStatus, LUNAR_ROCKS, ROVER_BOUNDS } from '../simulation/roverExploration'
+import { playResonanceHum, playPlasmaBurst, playVictoryChime } from './edsAudio'
 
 export const modules = {
   solar: {
@@ -128,21 +129,7 @@ export default function ModulePanel({ selected, state: s, dispatch }: { selected
             <Slider label="Radiación solar incidente" value={s.sunlight} onChange={value => dispatch({ type: 'sunlight', value })} />
             <Slider label="Ángulo de elevación de paneles" value={s.panelAngle} max={90} unit="°" onChange={value => dispatch({ type: 'panel-angle', value })} />
             <p className="control-hint">Elevación óptima recomendada: 45°.</p>
-            <div className="maintenance">
-              <div className="maintenance-heading">
-                <Sparkles size={17} />
-                <strong>Mantenimiento de superficie</strong>
-                <span>Sistema EDS</span>
-              </div>
-              <Meter label="Acumulación de regolito en celdas" value={s.dust} color="amber" />
-              <div className="button-pair">
-                <button className="secondary" disabled={s.cleaning} onClick={() => dispatch({ type: 'add-dust' })}>Polvo simulado</button>
-                <button className="primary" disabled={s.cleaning || s.dust <= 0 || !e.powered || s.paused} onClick={() => dispatch({ type: 'clean' })}>
-                  <Sparkles size={15} /> {s.cleaning ? 'Limpiando…' : 'Activar limpieza EDS'}
-                </button>
-              </div>
-              <p>El ciclo electrodinámico consume energía de la red durante la operación.</p>
-            </div>
+            <SolarMaintenanceGame state={s} dispatch={dispatch} powered={e.powered} />
           </>
         )}
         {selected === 'rover' && (
@@ -374,6 +361,214 @@ function ISSControlPanel({ state: s, dispatch }: { state: State; dispatch: Dispa
           <Share2 size={15} /> Coordinar Telemetría Orbital ISS con Misiones en Tierra
         </button>
       </div>
+    </div>
+  );
+}
+
+function SolarMaintenanceGame({ state: s, dispatch, powered }: { state: State; dispatch: Dispatch<Action>; powered: boolean }) {
+  const prevDustRef = useRef(s.dust);
+
+  useEffect(() => {
+    if (prevDustRef.current > 0 && s.dust === 0) {
+      playVictoryChime();
+    }
+    prevDustRef.current = s.dust;
+  }, [s.dust]);
+
+  const resonance = s.edsResonance;
+  const isResonant = resonance >= 75;
+  const isMid = resonance >= 40 && resonance < 75;
+  const waveColor = isResonant ? '#00f0ff' : isMid ? '#facc15' : '#f43f5e';
+
+  // Generar trazo senoidal del osciloscopio
+  const cycles = (s.edsFrequency / 60) * 4.2;
+  const amp = (s.edsVoltage / 2000) * 23;
+  const points: string[] = [];
+  for (let x = 0; x <= 300; x += 3) {
+    const y = 35 + Math.sin((x / 300) * cycles * Math.PI * 2 + s.elapsed * 6) * amp;
+    points.push(`${x},${y.toFixed(1)}`);
+  }
+  const wavePath = `M ${points.join(' L ')}`;
+
+  const handleFrequencyChange = (value: number) => {
+    dispatch({ type: 'eds-set-tuning', frequency: value });
+    playResonanceHum(value, s.edsResonance);
+  };
+
+  const handleVoltageChange = (value: number) => {
+    dispatch({ type: 'eds-set-tuning', voltage: value });
+    playResonanceHum(s.edsFrequency, s.edsResonance);
+  };
+
+  const handleFirePulse = () => {
+    playPlasmaBurst();
+    dispatch({ type: 'eds-fire-pulse' });
+  };
+
+  return (
+    <div className="maintenance eds-game-card">
+      <div className="maintenance-heading">
+        <Sparkles size={17} />
+        <strong>Escudo Electrodinámico EDS</strong>
+        <span style={{ color: waveColor, fontWeight: 700, fontSize: '0.78rem' }}>
+          {isResonant ? '⚡ RESONANCIA ÓPTIMA' : isMid ? 'SINTONIZANDO' : 'DESCALIBRADO'}
+        </span>
+      </div>
+
+      {/* Alerta de tormenta activa */}
+      {s.edsEmergency && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.18)',
+          border: '1px solid #ef4444',
+          borderRadius: 8,
+          padding: '8px 12px',
+          marginBottom: 10,
+          color: '#fecaca',
+          fontSize: '0.85rem'
+        }}>
+          <strong>🚨 ¡Alerta de Regolito!</strong> La base necesita energía limpia. Sintoniza a 60 Hz y 1500 V para expulsar el polvo.
+        </div>
+      )}
+
+      {/* Medidor de polvo */}
+      <Meter label="Acumulación de regolito en celdas" value={s.dust} color="amber" />
+
+      {/* Osciloscopio interactivo de ondas viajeras */}
+      <div style={{
+        marginTop: 10,
+        marginBottom: 8,
+        background: '#070f1e',
+        borderRadius: 8,
+        border: `1px solid ${isResonant ? 'rgba(0, 240, 255, 0.6)' : 'rgba(255, 255, 255, 0.1)'}`,
+        boxShadow: isResonant ? '0 0 14px rgba(0, 240, 255, 0.25)' : 'none',
+        padding: '6px 8px',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8', marginBottom: 2 }}>
+          <span>Osciloscopio de Onda Viajera (EDS)</span>
+          <strong style={{ color: waveColor }}>Acoplamiento: {resonance}%</strong>
+        </div>
+        <svg width="100%" height="70" viewBox="0 0 300 70" preserveAspectRatio="none">
+          {/* Rejilla de fondo */}
+          <line x1="0" y1="35" x2="300" y2="35" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+          <line x1="150" y1="0" x2="150" y2="70" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+          {/* Zona de resonancia objetivo */}
+          <rect x="135" y="0" width="30" height="70" fill={isResonant ? 'rgba(0, 240, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)'} />
+          {/* Onda senoidal animada */}
+          <path d={wavePath} fill="none" stroke={waveColor} strokeWidth={isResonant ? '2.8' : '2'} />
+        </svg>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748b', marginTop: 2 }}>
+          <span>Voltaje: {s.edsVoltage} V (Ideal: 1500 V)</span>
+          <span>Frecuencia: {s.edsFrequency} Hz (Ideal: 60 Hz)</span>
+        </div>
+      </div>
+
+      {/* Deslizadores del minijuego */}
+      <Slider
+        label="Frecuencia de Onda (Hz)"
+        value={s.edsFrequency}
+        min={10}
+        max={100}
+        unit=" Hz"
+        onChange={handleFrequencyChange}
+      />
+      <Slider
+        label="Potencial Electrostático (V)"
+        value={s.edsVoltage}
+        min={500}
+        max={2000}
+        unit=" V"
+        onChange={handleVoltageChange}
+      />
+
+      {/* Botones de acción principales */}
+      <div className="button-pair" style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          className="primary"
+          style={{
+            background: isResonant ? 'linear-gradient(135deg, #0284c7, #00f0ff)' : undefined,
+            color: isResonant ? '#041727' : undefined,
+            fontWeight: 700,
+            boxShadow: isResonant ? '0 0 16px rgba(0, 240, 255, 0.4)' : undefined
+          }}
+          disabled={s.dust <= 0 || !powered || s.paused}
+          onClick={handleFirePulse}
+        >
+          <Zap size={16} /> {isResonant ? '¡DESCARGA DE PLASMA EDS!' : 'Disparar Pulso'}
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          disabled={s.cleaning}
+          onClick={() => dispatch({ type: 'eds-trigger-emergency' })}
+        >
+          🚨 Simular Tormenta
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button
+          type="button"
+          className="sim-btn-sub"
+          style={{ width: '100%', padding: '6px', fontSize: '11px', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, cursor: 'pointer', color: '#cbd5e1' }}
+          disabled={s.cleaning || s.dust <= 0 || !powered || s.paused}
+          onClick={() => dispatch({ type: 'clean' })}
+        >
+          <Sparkles size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+          {s.cleaning ? 'Limpieza Continua en Curso…' : 'Modo Limpieza Continua Tradicional'}
+        </button>
+      </div>
+
+      {/* Operación Simultánea con el Rover */}
+      <div style={{
+        marginTop: 12,
+        padding: '10px',
+        background: 'rgba(15, 23, 42, 0.65)',
+        border: '1px solid rgba(148, 163, 184, 0.15)',
+        borderRadius: 8
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Truck size={16} color="#38bdf8" />
+            <strong style={{ fontSize: '0.85rem' }}>Rover en Movimiento Simultáneo</strong>
+          </div>
+          <span style={{ fontSize: '0.78rem', color: s.roverBattery < 20 ? '#ef4444' : '#38bdf8' }}>
+            Batería: {s.roverBattery.toFixed(0)}%
+          </span>
+        </div>
+        <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '4px 0 8px 0' }}>
+          {s.roverAutopilot
+            ? '🚗 El rover patrulla el perímetro lunar en vivo (1.6 m/s). ¡Al pasar junto a los paneles levanta polvo!'
+            : 'El rover está estacionado. ¡Puedes conducirlo con las teclas W, A, S, D en cualquier momento!'}
+        </p>
+        <button
+          type="button"
+          className={s.roverAutopilot ? 'secondary full' : 'primary full'}
+          onClick={() => dispatch({ type: 'rover-autopilot-toggle' })}
+        >
+          <Truck size={15} /> {s.roverAutopilot ? 'Pausar Patrulla del Rover' : '▶ Activar Patrulla del Rover'}
+        </button>
+      </div>
+
+      {/* Reconocimiento / Medallas si los paneles están limpios */}
+      {s.dust === 0 && (
+        <div style={{
+          marginTop: 12,
+          padding: '10px 12px',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(56, 189, 248, 0.15))',
+          border: '1px solid #10b981',
+          borderRadius: 8,
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '1.2rem', marginBottom: 2 }}>⭐⭐⭐</div>
+          <strong style={{ color: '#34d399', fontSize: '0.9rem' }}>¡Paneles 100% Impecables!</strong>
+          <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
+            Generación fotovoltaica restaurada a {metrics(s).production.toFixed(0)} W. Rango: <em>Ingeniero de Plasma Nivel Oro</em>.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
