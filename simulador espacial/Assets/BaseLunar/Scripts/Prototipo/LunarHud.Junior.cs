@@ -13,7 +13,7 @@ namespace BaseLunar
             Label(r.x + 25, r.y + 17, 510, $"ASTRONAUTAS JUNIOR  /  MÓDULO {lab.Selected + 1:00}", orange, small);
             Label(r.x + 25, r.y + 35, 635, module.Name, cloud, title);
             Label(r.x + 26, r.y + 83, 745, module.Goal, cloud, body);
-            if (RoundControl(new Rect(r.xMax - 161, r.y + 25, 136, 34), "Coleccionables"))
+            if (RoundControl(new Rect(r.xMax - 161, r.y + 25, 136, 34), LunarControls.ClosePrompt))
             {
                 lab.Close();
                 return;

@@ -105,18 +105,22 @@ namespace BaseLunar
 
         internal void Configure(StationResourceProfile settings) => profile = settings;
 
+        [Serializable]
         internal sealed class Checkpoint
         {
-            public StationResources Resources;
+            public ResourceFlow Reserves;
+            public float GenerationKw, DemandKw, SuppliedKw, BatteryKwh, Hull, Morale, Health;
             public float SolarDust, AntennaDust, Calibration, Shield, Leak, Accumulator;
-            public readonly (bool Broken, bool Powered, bool Pressurized)[] Modules = new (bool, bool, bool)[8];
+            public StationModule.Checkpoint[] Modules;
         }
 
         internal Checkpoint CaptureCheckpoint()
         {
             var snapshot = new Checkpoint
             {
-                Resources = Current, SolarDust = solarDust, AntennaDust = antennaDust,
+                Reserves = reserves, GenerationKw = generationKw, DemandKw = demandKw,
+                SuppliedKw = suppliedKw, BatteryKwh = batteryKwh, Hull = hull, Morale = morale, Health = health,
+                SolarDust = solarDust, AntennaDust = antennaDust, Modules = new StationModule.Checkpoint[modules.Length],
                 Calibration = antennaCalibration, Shield = shieldCoverage, Leak = oxygenLeakPerSecond,
                 Accumulator = accumulator
             };
@@ -128,15 +132,14 @@ namespace BaseLunar
 
         internal void RestoreCheckpoint(Checkpoint snapshot)
         {
-            StationResources saved = snapshot.Resources;
-            reserves = saved.Reserves;
-            generationKw = saved.GenerationKw;
-            demandKw = saved.DemandKw;
-            suppliedKw = saved.SuppliedKw;
-            batteryKwh = saved.BatteryKwh;
-            hull = saved.HullPercent;
-            morale = saved.MoralePercent;
-            health = saved.HealthPercent;
+            reserves = snapshot.Reserves;
+            generationKw = snapshot.GenerationKw;
+            demandKw = snapshot.DemandKw;
+            suppliedKw = snapshot.SuppliedKw;
+            batteryKwh = snapshot.BatteryKwh;
+            hull = snapshot.Hull;
+            morale = snapshot.Morale;
+            health = snapshot.Health;
             solarDust = snapshot.SolarDust;
             antennaDust = snapshot.AntennaDust;
             antennaCalibration = snapshot.Calibration;

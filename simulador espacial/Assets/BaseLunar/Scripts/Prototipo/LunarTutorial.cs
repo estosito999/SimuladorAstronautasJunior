@@ -9,26 +9,26 @@ namespace BaseLunar
         private static readonly (int Room, string Title, string Speech, int Task, string Tip)[] Lessons =
         {
             (0, "Habitación principal",
-                "Soy Mara. Muévete con WASD o clic, usa E junto a un equipo y abre el plano con M. El tablero de esta sala repara el casco. Sígueme al invernadero.", -1, ""),
+                "WASD o clic. Pulsa E para usar. Abre el plano con M.", -1, ""),
             (2, "Invernadero",
-                "Aquí cultivamos la comida. Regar recupera comida y gasta agua.", 1,
-                "El agua de riego vuelve al circuito de la estación.\nLa misma gota puede pasar por varias macetas.\nAsí se aprovecha cada litro del invernadero."),
+                "Riega para conseguir comida.", 1,
+                "Reusamos el agua.\nPasa por las macetas.\n¡Cada gota cuenta!"),
             (3, "Soporte vital",
-                "Este módulo sostiene las reservas de oxígeno y agua. Si dejas el filtro pendiente, comenzarán las fugas.", 2,
-                "La base y el traje tienen reservas distintas.\nUna fuga interior afecta primero al aire de la sala.\nEl tanque portátil viaja contigo durante la EVA."),
+                "Limpia el filtro para recuperar oxígeno.", 2,
+                "La base tiene aire.\nTu traje tiene un tanque.\nSon dos reservas distintas."),
             (4, "Sala de ejercicio",
-                "Aquí entrenamos antes de las salidas. Una sesión en el gimnasio recupera salud y moral.", LunarExercise.Task,
-                "Entrenamos con botas lastradas dentro de Selene.\nLas correas ayudan a mantener el equilibrio.\nLa rutina cambia cada día para alternar el esfuerzo."),
+                "Entrena para sentirte mejor.", LunarExercise.Task,
+                "Las botas pesan.\nLas correas dan apoyo.\nLa rutina cambia cada día."),
             (LunarMap.CommunicationsRoom, "Comunicaciones y mantenimiento",
-                "En Investigación se preparan los datos. Desde este panel los enviamos a la Tierra los días 5, 10 y 15. Cada envío ocupa uno de los tres cupos.", 3,
-                "El enlace envía un paquete por día de informe.\nLos otros días, la consola conserva los registros.\nLa Tierra confirma la recepción de cada paquete."),
+                "Envía datos a la Tierra los días 5, 10 y 15.", 3,
+                "Guardamos los datos.\nLos enviamos por radio.\nLa Tierra confirma el envío."),
             (LunarMap.ResearchRoom, "Investigación",
-                "Aquí diseñamos el escudo para la superficie. En el otro panel podrás practicar cartografía de Marte con Mars Trek.", 6,
-                "El escudo se ancla fuera de la base.\nLos tres soportes orientan sus capas protectoras.\nSu cobertura beneficia a toda la estación."),
+                "Prueba el escudo. Aquí también puedes explorar Marte.", 6,
+                "El escudo va afuera.\nTiene tres soportes.\nProtege toda la base."),
             (1, "Garaje y esclusa",
-                "Equipa el traje antes de pulsar E en la esclusa. Afuera, sigue las luces verdes hacia los paneles y la antena. Al volver, presiona E en el botón lunar.", -1, ""),
+                "Ponte el traje. Pulsa E en la esclusa. Sigue las luces verdes.", -1, ""),
             (1, "Te dejo al mando",
-                "Puedes hacer hasta tres trabajos por día. Cuando termines al menos dos, pulsa E junto a tu cama para dormir. Completa los ocho tipos de trabajo antes de dormir el día 15.", -1, "")
+                "Haz 2 o 3 tareas al día. Pulsa E en tu cama para dormir.", -1, "")
         };
 
         private readonly LunarMap map;

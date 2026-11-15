@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace BaseLunar
@@ -5,7 +6,18 @@ namespace BaseLunar
     internal static class LunarCollection
     {
         private const string Prefix = "Selene.Collection.";
-        private const string All = "AllUnlocked";
+        public enum SecretCard { None, Foxy, MiniPekka, Us }
+        private static readonly HashSet<SecretCard> redeemedCards = new();
+        private static bool allUnlocked;
+        public static bool UsesBaldSkin { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        internal static void ResetCodes()
+        {
+            redeemedCards.Clear();
+            allUnlocked = false;
+            UsesBaldSkin = false;
+        }
         public static readonly string[] Sections = { "Muertes", "Finales", "Datos", "Módulos" };
         public static readonly (string Key, string Name)[] Deaths =
         {
@@ -54,10 +66,10 @@ namespace BaseLunar
             return list.ToArray();
         }
 
-        public static bool IsUnlocked(string key) =>
-            PlayerPrefs.GetInt(Prefix + All, 0) == 1 || PlayerPrefs.GetInt(Prefix + key, 0) == 1;
+        public static bool IsUnlocked(string key) => allUnlocked || HasRecorded(key);
 
         public static bool HasRecorded(string key) => PlayerPrefs.GetInt(Prefix + key, 0) == 1;
+        public static bool HasRedeemed(SecretCard card) => redeemedCards.Contains(card);
 
         public static void Unlock(string key)
         {
@@ -69,9 +81,31 @@ namespace BaseLunar
 
         public static bool TryCode(string value)
         {
-            if (!string.Equals(value, "NASA", System.StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(value?.Trim(), "NASA", System.StringComparison.OrdinalIgnoreCase))
                 return false;
-            Unlock(All);
+            allUnlocked = true;
+            return true;
+        }
+
+        public static SecretCard RedeemCard(string code)
+        {
+            SecretCard card = code?.Trim().Normalize().ToUpperInvariant() switch
+            {
+                "1983" => SecretCard.Foxy,
+                "AÑA" => SecretCard.MiniPekka,
+                "US" => SecretCard.Us,
+                _ => SecretCard.None
+            };
+            if (card != SecretCard.None)
+                redeemedCards.Add(card);
+            return card;
+        }
+
+        public static bool ToggleBaldSkin(string code)
+        {
+            if (!string.Equals(code?.Trim(), "PELO", System.StringComparison.OrdinalIgnoreCase))
+                return false;
+            UsesBaldSkin = !UsesBaldSkin;
             return true;
         }
     }

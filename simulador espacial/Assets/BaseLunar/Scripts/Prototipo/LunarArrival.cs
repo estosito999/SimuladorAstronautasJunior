@@ -36,10 +36,23 @@ namespace BaseLunar
         private readonly Shuttle heroShip;
         private readonly Shuttle maraShip;
         private readonly Transform cockroach;
-        private readonly Transform mutantEar;
+        private readonly Transform ring, protector, lantern, cough;
         private readonly Transform[] insectLegs = new Transform[6];
+        private readonly SpriteRenderer ringGlow, lanternGlow;
+        private static readonly Vector2 LanternSite = new(64.3f, -11.2f);
+        private static readonly (float Start, float End, string Speaker, string Text)[] LanternLines =
+        {
+            (9.6f, 15.8f, "ANILLO VERDE", "Cucaracha de la Tierra, el Cuerpo de Linternas Verdes te selecciona por tu capacidad para superar el miedo y tu fuerza de voluntad."),
+            (18.4f, 23.4f, "PROTECTOR HERIDO", "Soy el protector del sector 2814. El anillo te eligió a ti."),
+            (23.4f, 27.3f, "PROTECTOR HERIDO", "Toma el anillo. Colócalo en la linterna y di el juramento."),
+            (27.3f, 31.9f, "CUCARACHA", "En el día más brillante, en la noche más oscura, ningún mal se escapará a mi vista."),
+            (31.9f, 35.65f, "CUCARACHA", "Que aquellos que veneran el mal teman mi poder: la luz de Linterna Verde.")
+        };
+        private bool heroCuePlayed;
+        private int lastLanternLine = -1;
         private Vector2 departureOrigin;
         private float elapsed;
+        private bool liveHeroVisible, liveMaraVisible, liveCrewVisible;
 
         public bool Playing { get; private set; }
         public bool Departure { get; private set; }
@@ -47,7 +60,28 @@ namespace BaseLunar
         public bool Winning { get; private set; }
         public bool VictorySpace => Winning && elapsed >= 5.7f && elapsed < 8.1f;
         public bool VictoryCloseup => Winning && elapsed >= 8.1f;
-        public bool VictoryText => Winning && elapsed >= 11.8f;
+        public bool VictoryText => Winning && elapsed >= 36f;
+        public event System.Action HeroMoment;
+        public event System.Action<int> LanternSpoken;
+
+        private int CurrentLanternLine
+        {
+            get
+            {
+                for (int i = 0; i < LanternLines.Length; i++)
+                    if (elapsed >= LanternLines[i].Start && elapsed < LanternLines[i].End)
+                        return i;
+                return -1;
+            }
+        }
+        public (string Speaker, string Text) VictoryDialogue
+        {
+            get
+            {
+                int index = CurrentLanternLine;
+                return index < 0 ? (null, null) : (LanternLines[index].Speaker, LanternLines[index].Text);
+            }
+        }
         public Vector2 Focus { get; private set; }
         public float Zoom { get; private set; } = 7f;
         public string Caption { get; private set; }
@@ -66,6 +100,7 @@ namespace BaseLunar
             playerStage.gameObject.SetActive(false);
             heroShip = new Shuttle(world, art, "Nave del tripulante", LunarMap.PlayerBerth, Ink("6AB2D1"));
             maraShip = new Shuttle(world, art, "Nave de Mara", LunarMap.MaraBerth, Ink("D88D56"));
+            if (mara == null) maraShip.Show(false);
             heroShip.Show(false);
             cockroach = Group(world, "Cucaracha", LunarMap.PlayerBerth);
             art.Disc(cockroach, "Sombra", new Vector2(0.02f, -0.055f), new Vector2(0.59f, 0.26f), Ink("392B2B"), 14);
@@ -81,10 +116,31 @@ namespace BaseLunar
                 art.Line(leg, Vector2.zero, new Vector2(-0.10f, side * 0.18f), 0.031f, Ink("352527"), 16);
                 insectLegs[i] = leg;
             }
-            mutantEar = Group(cockroach, "Oreja de mapache", new Vector2(0.17f, 0.12f), -14f);
-            art.Disc(mutantEar, "Borde de la oreja", new Vector2(0, 0.14f), new Vector2(0.21f, 0.29f), Ink("33323A"), 20);
-            art.Disc(mutantEar, "Pelaje", new Vector2(0, 0.15f), new Vector2(0.145f, 0.20f), Ink("B1AFB6"), 21);
+            ring = Group(world, "Anillo verde", Vector2.zero);
+            ringGlow = art.Disc(ring, "Halo", Vector2.zero, Vector2.one * 0.72f, new Color(0.22f, 1f, 0.42f, 0.27f), 25);
+            art.Disc(ring, "Aro", Vector2.zero, Vector2.one * 0.29f, Ink("88FF9D"), 26);
+            art.Disc(ring, "Hueco del anillo", Vector2.zero, Vector2.one * 0.16f, Ink("335F43"), 27);
+            art.Plate(ring, "Gema", new Vector2(0f, 0.143f), new Vector2(0.16f, 0.09f), Ink("CEFFCF"), 28);
+
+            protector = Group(world, "Protector del sector 2814", LanternSite + new Vector2(-0.66f, 0.15f));
+            var protectorArt = new LunarCrewArt(protector, art);
+            protectorArt.ShowSuit(false);
+            protectorArt.Root.localRotation = Quaternion.Euler(0, 0, 75f);
+            art.Plate(protectorArt.Root, "Chaqueta esmeralda", new Vector2(0.04f, 0.075f), new Vector2(0.44f, 0.34f), Ink("307A49"), 19);
+            art.Disc(protectorArt.Root, "Insignia", new Vector2(0.10f, 0.12f), Vector2.one * 0.13f, Ink("BAFFBB"), 22);
+            cough = Group(protector, "Tos", Vector2.zero);
+            art.Disc(cough, "Gota estilizada", Vector2.zero, Vector2.one * 0.058f, Ink("A95E64"), 27);
+
+            lantern = Group(world, "Linterna verde", LanternSite + new Vector2(0.52f, 0.04f));
+            lanternGlow = art.Disc(lantern, "Luz proyectada", Vector2.zero, Vector2.one * 0.86f,
+                new Color(0.22f, 1f, 0.42f, 0.22f), 23);
+            art.Plate(lantern, "Cuerpo", Vector2.zero, new Vector2(0.35f, 0.37f), Ink("2C7850"), 24);
+            art.Disc(lantern, "Lente", Vector2.zero, Vector2.one * 0.23f, Ink("AFFFB8"), 25);
+            art.Line(lantern, new Vector2(-0.12f, 0.15f), new Vector2(-0.09f, 0.31f), 0.055f, Ink("76C788"), 24);
+            art.Line(lantern, new Vector2(0.12f, 0.15f), new Vector2(0.09f, 0.31f), 0.055f, Ink("76C788"), 24);
+            art.Line(lantern, new Vector2(-0.09f, 0.31f), new Vector2(0.09f, 0.31f), 0.055f, Ink("76C788"), 24);
             cockroach.gameObject.SetActive(false);
+            ShowLanternActors(false);
         }
 
         public void BeginArrival()
@@ -118,16 +174,18 @@ namespace BaseLunar
             Zoom = 7.2f;
         }
 
-        public void BeginAbandonment()
+        public void BeginAbandonment(Vector2? replayOrigin = null)
         {
             Departure = false;
             Abandoning = Playing = true;
             elapsed = 0f;
-            departureOrigin = player.position;
+            heroShip.Show(true);
+            departureOrigin = replayOrigin ?? player.position;
             Focus = departureOrigin;
             Zoom = 6.7f;
             playerStage.position = departureOrigin;
             crewArt.Root.SetParent(playerStage, false);
+            crewArt.ShowSuit(true);
         }
 
         public void BeginVictory()
@@ -138,7 +196,10 @@ namespace BaseLunar
             playerStage.position = departureOrigin;
             Focus = departureOrigin;
             crewArt.ShowSuit(true);
-            mutantEar.gameObject.SetActive(false);
+            cockroach.gameObject.SetActive(false);
+            heroCuePlayed = false;
+            lastLanternLine = -1;
+            ShowLanternActors(false);
         }
 
         public bool Tick(float seconds)
@@ -154,7 +215,7 @@ namespace BaseLunar
                 AnimateDeparture(seconds);
             else
                 AnimateArrival(seconds);
-            if (elapsed < (Winning ? 14.4f : Abandoning ? 5.7f : Departure ? 15f : 20.6f))
+            if (elapsed < (Winning ? 39.2f : Abandoning ? 5.7f : Departure ? 15f : 20.6f))
                 return false;
 
             Playing = false;
@@ -196,6 +257,32 @@ namespace BaseLunar
         {
             FinishAbandonment();
             Winning = false;
+        }
+
+        public void ResetReplay()
+        {
+            Winning = Abandoning = false;
+            cockroach.gameObject.SetActive(false);
+            ShowLanternActors(false);
+            FinishAbandonment();
+            crewArt.Root.SetParent(player.transform, false);
+        }
+
+        public void HideForReplay()
+        {
+            liveHeroVisible = heroShip.Visible;
+            liveMaraVisible = maraShip.Visible;
+            liveCrewVisible = crewArt.Root.gameObject.activeSelf;
+            heroShip.Show(false);
+            maraShip.Show(false);
+            crewArt.Root.gameObject.SetActive(false);
+        }
+
+        public void RestoreAfterReplay()
+        {
+            heroShip.Show(liveHeroVisible);
+            maraShip.Show(liveMaraVisible);
+            crewArt.Root.gameObject.SetActive(liveCrewVisible);
         }
 
         private void AnimateArrival(float seconds)
@@ -355,12 +442,56 @@ namespace BaseLunar
                 return;
             }
             heroShip.Show(false);
-            Focus = roachEnd;
-            Zoom = 1.72f;
-            float mutation = Ease((elapsed - 9.37f) / 1.32f);
-            mutantEar.gameObject.SetActive(mutation > 0f);
-            mutantEar.localScale = new Vector3(0.63f + mutation * 0.37f, mutation, 1f);
-            mutantEar.localRotation = Quaternion.Euler(0, 0, -14f + Mathf.Sin(elapsed * 19f) * mutation * 9f);
+            AnimateLantern(roachEnd);
+        }
+
+        private void AnimateLantern(Vector2 roachEnd)
+        {
+            Vector2 hovered = roachEnd + new Vector2(0.42f, 0.67f);
+            Vector2 arrived = LanternSite + new Vector2(0.13f, -0.23f);
+            ring.gameObject.SetActive(true);
+            if (elapsed < 15.8f)
+            {
+                float approach = Ease((elapsed - 8.3f) / 1.28f);
+                ring.position = Vector2.Lerp(roachEnd + new Vector2(4.4f, 2.1f), hovered, approach);
+                Focus = roachEnd + Vector2.up * 0.22f;
+            }
+            else
+            {
+                float trip = Ease((elapsed - 15.8f) / 2.55f);
+                float charge = Ease((elapsed - 26.43f) / 0.82f);
+                cockroach.position = Vector2.Lerp(roachEnd, arrived, trip);
+                ring.position = Vector2.Lerp(Vector2.Lerp(hovered, arrived + new Vector2(0.31f, 0.48f), trip),
+                    lantern.position, charge);
+                Focus = Vector2.Lerp(roachEnd, LanternSite + Vector2.up * 0.13f, trip);
+                protector.gameObject.SetActive(trip > 0.62f);
+                lantern.gameObject.SetActive(trip > 0.62f);
+                lanternGlow.transform.localScale = Vector3.one * (0.22f + charge * (0.9f + Mathf.Sin(elapsed * 10f) * 0.14f));
+                float gasp = Mathf.Clamp01((elapsed - 18.26f) / 0.44f);
+                cough.gameObject.SetActive(gasp > 0f && gasp < 1f);
+                cough.localPosition = new Vector3(-0.33f - gasp * 0.28f, 0.21f + Mathf.Sin(gasp * Mathf.PI) * 0.11f, 0f);
+                if (!heroCuePlayed && elapsed >= 27.3f)
+                {
+                    heroCuePlayed = true;
+                    HeroMoment?.Invoke();
+                }
+            }
+            ringGlow.transform.localScale = Vector3.one * (0.66f + 0.15f * Mathf.Sin(elapsed * 6f));
+            int line = CurrentLanternLine;
+            if (line >= 0 && line != lastLanternLine)
+            {
+                lastLanternLine = line;
+                LanternSpoken?.Invoke(line);
+            }
+            Zoom = 1.74f;
+        }
+
+        private void ShowLanternActors(bool visible)
+        {
+            ring.gameObject.SetActive(visible);
+            protector.gameObject.SetActive(visible);
+            lantern.gameObject.SetActive(visible);
+            cough.gameObject.SetActive(false);
         }
 
         private void WalkPlayer(Vector2 point, float seconds)
@@ -431,6 +562,7 @@ namespace BaseLunar
                 Fly(berth, 0);
             }
 
+            public bool Visible => root.gameObject.activeSelf;
             public void Show(bool visible) => root.gameObject.SetActive(visible);
 
             public void Fly(Vector2 position, float height)

@@ -68,11 +68,17 @@ namespace BaseLunar
             RefreshState();
         }
 
-        internal (bool Broken, bool Powered, bool Pressurized) CaptureState() => (broken, hasPower, IsPressurized);
-
-        internal void RestoreState((bool Broken, bool Powered, bool Pressurized) state)
+        [System.Serializable]
+        internal struct Checkpoint
         {
-            (broken, hasPower, IsPressurized) = state;
+            public bool Broken, Powered, Pressurized;
+        }
+
+        internal Checkpoint CaptureState() => new() { Broken = broken, Powered = hasPower, Pressurized = IsPressurized };
+
+        internal void RestoreState(Checkpoint state)
+        {
+            (broken, hasPower, IsPressurized) = (state.Broken, state.Powered, state.Pressurized);
             RefreshState();
         }
 

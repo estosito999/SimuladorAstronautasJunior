@@ -38,7 +38,7 @@ El comando usa `Assets/Editor/SeleneWebBuild.cs`, genera los archivos Web en un 
 
 Las carpetas generadas y provisionales de Unity están excluidas del observador de Vite para evitar bloqueos al publicar en Windows. El importador reintenta brevemente los movimientos afectados por bloqueos transitorios y mantiene la restauración de la exportación anterior ante fallos.
 
-`EstacionSelene.unity` contiene `LunarGameManager` y es la escena inicial de esta exportación. `SampleScene.unity` contiene cámara e iluminación y se incluye después. Este orden se aplica mediante `BuildPlayerOptions.scenes`. Las escenas, `EditorBuildSettings.asset`, recursos y scripts jugables originales conservan su contenido. Las opciones temporales de compresión se restauran al terminar.
+`EstacionSelene.unity` contiene `LunarGameManager` y es la escena inicial de esta exportación. La versión actual tiene habilitada únicamente esa escena y mantiene `SampleScene.unity` desactivada. El exportador usa las escenas habilitadas mediante `BuildPlayerOptions.scenes`. Las opciones temporales de compresión se restauran al terminar.
 
 ## Importar una exportación existente
 
@@ -68,6 +68,8 @@ Sirve el proyecto mediante HTTP o HTTPS. El navegador debe admitir WebGL 2 y Web
 ## Integración y controles
 
 `UnitySimulator.tsx` comprueba el manifiesto, abre `unity/player.html` y recibe los eventos de progreso, inicio y error. El reproductor llama a `createUnityInstance` con los archivos publicados. Los mensajes se validan por origen y ventana emisora. Al salir se desmonta el documento del reproductor y se libera su runtime.
+
+La versión actual de Unity guarda la campaña en `Application.persistentDataPath`. El reproductor activa `autoSyncPersistentDataPath` para sincronizar esos archivos con IndexedDB y recuperarlos al volver a abrir el juego desde el mismo origen del navegador.
 
 El teclado y ratón se entregan al canvas de Unity. La simulación web de SELENE suspende sus controles y su avance mientras se abre una misión externa. El puente de telemetría existente tiene contratos para otros objetos y conserva su uso actual.
 

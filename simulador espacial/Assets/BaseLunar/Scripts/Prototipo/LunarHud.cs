@@ -18,7 +18,7 @@ namespace BaseLunar
         private readonly Color indigo = Ink("2C5071");
         private readonly Color steel = Ink("526473");
         private GUIStyle title, endingTitle, heading, body, small, button, paragraph;
-        private GUIStyle cleanButton, centeredBody;
+        private GUIStyle cleanButton, centeredBody, centeredOpening;
         private float width, height;
         private float scale;
         private bool dragging;
@@ -56,6 +56,25 @@ namespace BaseLunar
             swept = 0;
         }
 
+        public void InterruptGesture()
+        {
+            dragging = false;
+            purgeStarted = -1f;
+            pointerTracking = false;
+        }
+
+        public void PauseMenu(Action resume, Action collection, Action exit)
+        {
+            Fill(new Rect(0, 0, width, height), new Color(0.10f, 0.12f, 0.15f, 0.91f));
+            float x = width * 0.5f;
+            float y = height * 0.50f;
+            Text(new Rect(x - 190, y - 143, 380, 32), "ESTACIÓN SELENE", orange, centeredBody);
+            Label(x - 75, y - 104, 220, "En pausa", cloud, title);
+            if (MenuCircle(new Vector2(x - 151, y), "▶", "Reanudar", true)) resume();
+            if (MenuCircle(new Vector2(x, y), "★", "Coleccionables")) collection();
+            if (MenuCircle(new Vector2(x + 151, y), "×", "Salir al menú")) exit();
+        }
+
         public void Begin(bool usePadPointer)
         {
             if (title == null)
@@ -66,6 +85,7 @@ namespace BaseLunar
                 body = Style(15);
                 paragraph = new GUIStyle(body) { wordWrap = true };
                 centeredBody = new GUIStyle(body) { alignment = TextAnchor.MiddleCenter };
+                centeredOpening = new GUIStyle(heading) { alignment = TextAnchor.MiddleCenter };
                 small = Style(12, FontStyle.Bold);
                 button = new GUIStyle(GUI.skin.button) { fontSize = 15, fontStyle = FontStyle.Bold };
                 cleanButton = new GUIStyle(GUIStyle.none)
@@ -371,7 +391,7 @@ namespace BaseLunar
             return rect;
         }
 
-        public void MainMenu(Action begin, Action collections, Action exit)
+        public void MainMenu(Action begin, int savedDay, Action continueCampaign, Action collections, Action exit)
         {
             Fill(new Rect(0, 0, width, height), graphite);
             Rect r = new((width - 790) / 2f, (height - 440) / 2f, 790, 440);
@@ -408,9 +428,13 @@ namespace BaseLunar
             Label(r.x + 26, r.y + 56, 322, "TURNO DE MANTENIMIENTO LUNAR", orange, small);
             Label(r.x + 24, r.y + 83, 335, "Estación Selene", cloud, title);
             float buttonsY = r.y + 226;
-            if (MenuCircle(new Vector2(r.x + 66, buttonsY), "▶", "Jugar", primary: true)) begin();
+            if (MenuCircle(new Vector2(r.x + 66, buttonsY), "▶",
+                    savedDay > 0 ? "Nueva partida" : "Jugar", primary: savedDay == 0)) begin();
             if (MenuCircle(new Vector2(r.x + 178, buttonsY), "★", "Coleccionables")) collections();
             if (MenuCircle(new Vector2(r.x + 290, buttonsY), "×", "Salir")) exit();
+            if (savedDay > 0 && RoundControl(new Rect(r.x + 26, r.y + 320, 304, 50),
+                    $"Continuar · Día {savedDay}", true))
+                continueCampaign();
         }
 
         private bool MenuCircle(Vector2 point, string icon, string label, bool primary = false)
@@ -451,6 +475,11 @@ namespace BaseLunar
 
         private void Raccoon(Vector2 center, float size, bool faceOnly = false)
         {
+            if (LunarCollection.UsesBaldSkin)
+            {
+                BaldPortrait(center, size, faceOnly);
+                return;
+            }
             Color fur = Ink("A5A7AB"), mask = Ink("30333C");
             if (!faceOnly)
             {
@@ -474,7 +503,26 @@ namespace BaseLunar
             Dot(center + Vector2.up * size * 0.048f, size * 0.096f, mask);
         }
 
-        public void Collection(Action close, Action<int> openJunior)
+        private void BaldPortrait(Vector2 center, float size, bool faceOnly)
+        {
+            Color outline = Ink("333039"), skin = Ink("D8A98D");
+            if (!faceOnly)
+                Dot(center + Vector2.up * size * 0.27f, size * 0.58f, Ink("3579AC"));
+            Dot(center + Vector2.left * size * 0.28f, size * 0.13f, outline);
+            Dot(center + Vector2.right * size * 0.28f, size * 0.13f, outline);
+            Dot(center, size * 0.65f, outline);
+            Dot(center, size * 0.60f, skin);
+            Dot(center + new Vector2(-0.08f, -0.20f) * size, size * 0.115f, Ink("F3C8AA"));
+            Dot(center + new Vector2(-0.12f, 0.01f) * size, size * 0.05f, outline);
+            Dot(center + new Vector2(0.12f, 0.01f) * size, size * 0.05f, outline);
+            Dot(center + Vector2.up * (size * 0.072f), size * 0.09f, Ink("BA846D"));
+            Stroke(center + new Vector2(-0.063f, 0.16f) * size, center + new Vector2(0.063f, 0.16f) * size,
+                size * 0.016f, Ink("7C564D"));
+        }
+
+        public void Collection(Action close, Action<int> openJunior, Action<string, string> replay,
+            Action<LunarCollection.SecretCard> showCard,
+            Action refreshSkin)
         {
             Rect r = Dialog(700, 491, graphite, orange);
             Label(r.x + 28, r.y + 19, 535, "Coleccionables", cloud, title);
@@ -519,8 +567,14 @@ namespace BaseLunar
                 Pill(row, unlocked ? cloud : Ink("4F535B"));
                 Dot(new Vector2(row.x + 18, row.center.y), 9, unlocked ? orange : muted);
                 Label(row.x + 33, row.y + 5, 486, entry.Name, unlocked ? ink : cloud, body);
-                Label(row.xMax - 116, row.y + 7, 108, unlocked ? "DESBLOQUEADO" : "PENDIENTE",
+                bool playable = unlocked && collectionSection < 2;
+                Label(row.xMax - 116, row.y + 7, 108, playable ? "▶  REPRODUCIR" : unlocked ? "DESBLOQUEADO" : "PENDIENTE",
                     unlocked ? steel : muted, small);
+                if (playable && (GUI.Button(row, GUIContent.none, GUIStyle.none) || VirtualClick(row)))
+                {
+                    replay(entry.Key, entry.Name);
+                    return;
+                }
             }
             if (collectionPage > 0 && RoundControl(new Rect(r.x + 28, r.y + 373, 94, 30), "Anterior"))
                 collectionPage--;
@@ -530,8 +584,57 @@ namespace BaseLunar
             Label(r.x + 28, r.y + 424, 121, "Código secreto", cloud, body);
             collectionCode = GUI.TextField(new Rect(r.x + 153, r.y + 422, 61, 29), collectionCode, 4);
             if (RoundControl(new Rect(r.x + 226, r.y + 419, 116, 34), "Canjear", true))
-                codeFeedback = LunarCollection.TryCode(collectionCode) ? "Colección completa." : "Código incorrecto.";
+            {
+                LunarCollection.SecretCard card = LunarCollection.RedeemCard(collectionCode);
+                if (card != LunarCollection.SecretCard.None)
+                {
+                    collectionCode = "";
+                    codeFeedback = "";
+                    showCard(card);
+                    return;
+                }
+                if (LunarCollection.ToggleBaldSkin(collectionCode))
+                {
+                    refreshSkin();
+                    codeFeedback = LunarCollection.UsesBaldSkin ? "Aspecto calvo activado." : "Aspecto de mapache restaurado.";
+                    collectionCode = "";
+                }
+                else
+                {
+                    bool unlocked = LunarCollection.TryCode(collectionCode);
+                    codeFeedback = unlocked ? "Colección completa esta sesión." : "Código incorrecto.";
+                    if (unlocked) collectionCode = "";
+                }
+            }
             Label(r.x + 357, r.y + 425, 290, codeFeedback, cloud, body);
+            if (LunarCollection.HasRedeemed(LunarCollection.SecretCard.Foxy) &&
+                RoundControl(new Rect(r.x + 28, r.y + 455, 133, 26), "Ver a Foxy"))
+                showCard(LunarCollection.SecretCard.Foxy);
+            if (LunarCollection.HasRedeemed(LunarCollection.SecretCard.MiniPekka) &&
+                RoundControl(new Rect(r.x + 173, r.y + 455, 153, 26), "Ver a Mini P.E.K.K.A."))
+                showCard(LunarCollection.SecretCard.MiniPekka);
+            if (LunarCollection.HasRedeemed(LunarCollection.SecretCard.Us) &&
+                RoundControl(new Rect(r.x + 338, r.y + 455, 133, 26), "Ver a US"))
+                showCard(LunarCollection.SecretCard.Us);
+        }
+
+        public void OpeningMessage(Action next)
+        {
+            Fill(new Rect(0, 0, width, height), Color.black);
+            Rect message = new(0, height * 0.34f, width, 186);
+            Text(new Rect(message.x, message.y, message.width, 44),
+                "Tu trabajo es sobrevivir y, bueno, hacer mantenimiento.", Color.white, centeredOpening);
+            Text(new Rect(message.x, message.y + 38f, message.width, 38),
+                "Recuerda que mantenimiento… es igual a vida.", Color.white, centeredOpening);
+            Text(new Rect(message.x, message.y + 104f, message.width, 34),
+                "Un último consejo. Sigue las reglas.", Color.white, centeredOpening);
+            Text(new Rect(message.x, message.y + 139f, message.width, 34),
+                "Cosas malas podrían pasar si no lo haces.", Color.white, centeredOpening);
+            string key = LunarControls.UsingPS4 ? "X" : "Enter";
+            Rect buttonArea = new(width / 2f - 97f, height - 94f, 194f, 36f);
+            if (GUI.Button(buttonArea, GUIContent.none, GUIStyle.none))
+                next();
+            Text(buttonArea, $"Continuar  ·  {key}", Color.white, centeredBody);
         }
 
         public void Cinematic(string caption, string maraSpeech, bool arrival, Action skip)
@@ -548,9 +651,9 @@ namespace BaseLunar
                 skip();
         }
 
-        public void VictoryCinematic(bool space, bool inscription)
+        public void VictoryCinematic(LunarArrival ending, bool finished)
         {
-            if (space)
+            if (ending.VictorySpace)
                 for (int i = 0; i < 36; i++)
                 {
                     float x = Mathf.Repeat(i * 127.4f - Time.unscaledTime * (11f + 2f * (i % 3)), width);
@@ -559,7 +662,16 @@ namespace BaseLunar
                 }
             Fill(new Rect(0, 0, width, 38), Ink("151922"));
             Fill(new Rect(0, height - 53, width, 53), Ink("151922"));
-            if (inscription)
+            var dialogue = ending.VictoryDialogue;
+            if (ending.Winning && dialogue.Text != null)
+            {
+                Rect bubble = new((width - 667f) / 2f, height - 126f, 667, 90);
+                Fill(bubble, Ink("152B25"));
+                Fill(new Rect(bubble.x, bubble.y, 4, bubble.height), Ink("7EF5A8"));
+                Label(bubble.x + 18, bubble.y + 9, 631, dialogue.Speaker, Ink("85F7B0"), small);
+                Text(new Rect(bubble.x + 18, bubble.y + 30, 628, 55), dialogue.Text, cloud, paragraph);
+            }
+            if (ending.VictoryText || finished)
             {
                 Fill(new Rect(0, 0, width, height), new Color(0.04f, 0.06f, 0.09f, 0.42f));
                 Label(width / 2f - 218, height * 0.65f, 500, "¿CONTINUARÁ?", cloud, endingTitle);
@@ -757,7 +869,7 @@ namespace BaseLunar
                     if (watched)
                         Label(tape.x + 164, tape.y + 96, 123, "YA VISTA", muted, small);
                     else if (Control(new Rect(tape.x + 164, tape.y + 85, 119, 32), "Reproducir", true))
-                        vhs.Play(i, Time.unscaledTime);
+                        vhs.Play(i, Time.time);
                 }
                 return;
             }
@@ -941,6 +1053,53 @@ namespace BaseLunar
                 Stroke(dock - Vector2.up * 17, dock + Vector2.up * 17, 4, Ink("79D9E1"));
                 Dot(dock, 14, orange);
             }
+            if (day >= 12)
+                EarthMegastructure(center, day);
+        }
+
+        private void EarthMegastructure(Vector2 center, int day)
+        {
+            float tier = Mathf.InverseLerp(11, 15, day);
+            Color neon = new(0.42f, 0.96f, 1f, 0.4f + tier * 0.5f);
+            Color band = new(0.19f, 0.66f, 0.82f, 0.29f + tier * 0.38f);
+            float length = 186f;
+            for (int i = 0; i < 56; i++)
+            {
+                float a = i * Mathf.PI * 2f / 56;
+                float b = a + Mathf.PI * 2f / 56;
+                Vector2 p = FutureOrbitPoint(center, length, a);
+                Vector2 q = FutureOrbitPoint(center, length, b);
+                if (i % 4 == 0)
+                    Stroke(p, q, 5f, band);
+                if (i % 3 != 0 || day >= 15)
+                    Stroke(p, q, day >= 15 ? 2.6f : 1.5f, neon);
+                if (i % 7 == 0)
+                {
+                    Dot(p, 9f + 4f * tier, graphite);
+                    Dot(p, 4.5f, neon);
+                }
+            }
+            for (int i = 0; i < (day >= 15 ? 3 : 1); i++)
+            {
+                float a = Time.unscaledTime * 0.23f + i * 2.094f;
+                Vector2 ship = FutureOrbitPoint(center, length - 6, a);
+                Stroke(FutureOrbitPoint(center, length - 6, a - 0.24f), ship, 4f, band);
+                Dot(ship, 17, graphite);
+                Stroke(ship + new Vector2(-8, 2), ship + new Vector2(8, -2), 5f, cloud);
+                Dot(ship, 5f, orange);
+            }
+            if (day >= 15)
+            {
+                Rect tag = new(center.x - 123f, center.y + 137f, 246, 30);
+                Pill(tag, Ink("172A42"));
+                Text(tag, "CIUDAD ORBITAL · ACTIVA", neon, centeredBody);
+            }
+        }
+
+        private static Vector2 FutureOrbitPoint(Vector2 center, float length, float angle)
+        {
+            float x = Mathf.Cos(angle) * length, y = Mathf.Sin(angle) * 49f;
+            return center + new Vector2(x * 0.94f + y * 0.34f, -x * 0.34f + y * 0.94f);
         }
 
         public void SkipTutorial(Action skip)
@@ -1077,7 +1236,7 @@ namespace BaseLunar
                 int next = UnityEngine.Random.Range(0, 3);
                 pulseOrder[i] = i > 0 && next == pulseOrder[i - 1] ? (next + 1) % 3 : next;
             }
-            pulseStarted = Time.unscaledTime;
+            pulseStarted = Time.time;
         }
 
         public void Connect(int number, Action complete, Action<string> mistake)
@@ -1270,7 +1429,7 @@ namespace BaseLunar
             bool inside = (PointerPosition - center).sqrMagnitude <= radius * radius;
             if (PointerEvent(EventType.MouseDown) && inside)
             {
-                purgeStarted = Time.unscaledTime;
+                purgeStarted = Time.time;
                 UsePointer();
             }
             else if (purgeStarted >= 0f &&
@@ -1279,7 +1438,7 @@ namespace BaseLunar
                 purgeStarted = -1f;
                 UsePointer();
             }
-            float progress = purgeStarted < 0 ? 0 : Mathf.Clamp01((Time.unscaledTime - purgeStarted) / seconds);
+            float progress = purgeStarted < 0 ? 0 : Mathf.Clamp01((Time.time - purgeStarted) / seconds);
             Dot(center, 190, Ink("70747C"));
             Dot(center, 176, graphite);
             for (int i = 0; i < 64 * progress; i++)
@@ -1299,7 +1458,7 @@ namespace BaseLunar
         private void Pulses(Rect work, Action complete, Action<string> mistake)
         {
             const float interval = 0.72f;
-            float age = Time.unscaledTime - pulseStarted;
+            float age = Time.time - pulseStarted;
             int flash = Mathf.FloorToInt(age / interval);
             bool playing = flash < pulseOrder.Length;
             int highlighted = playing && age % interval < 0.51f ? pulseOrder[flash] : -1;
@@ -1324,7 +1483,7 @@ namespace BaseLunar
                     if (i != pulseOrder[pulseStep])
                     {
                         pulseStep = 0;
-                        pulseStarted = Time.unscaledTime;
+                        pulseStarted = Time.time;
                         mistake("Pulso incorrecto. Observa la secuencia otra vez");
                     }
                     else if (++pulseStep == pulseOrder.Length)
@@ -1335,7 +1494,7 @@ namespace BaseLunar
             if (!playing && Button(new Rect(work.x + 22, work.yMax - 53, 191, 33), "Volver a ver los pulsos"))
             {
                 pulseStep = 0;
-                pulseStarted = Time.unscaledTime;
+                pulseStarted = Time.time;
             }
         }
 
@@ -1434,7 +1593,7 @@ namespace BaseLunar
             if (!tuned)
                 dialSince = -1f;
             else if (dialSince < 0)
-                dialSince = Time.unscaledTime;
+                dialSince = Time.time;
 
             Fill(work, Ink("222427"));
             Rect scope = new(work.x + 15, work.y + 14, work.width - 30, 104);
@@ -1459,7 +1618,7 @@ namespace BaseLunar
             dial = GUI.HorizontalSlider(new Rect(x, work.y + 145, trackWidth, 25), dial, 0, 100);
             Label(work.xMax - 170, work.y + 132, 160, $"{dial:0.0}   MHz", tuned ? orange : white, heading);
             Label(x, work.y + 174, 350, tuned ? "Mantén la señal estable" : "Desliza el dial hasta la banda verde", muted, small);
-            float lockProgress = dialSince < 0 ? 0 : (Time.unscaledTime - dialSince) / 0.85f;
+            float lockProgress = dialSince < 0 ? 0 : (Time.time - dialSince) / 0.85f;
             Meter(new Rect(x, work.y + 198, trackWidth, 8), lockProgress, orange);
             if (lockProgress >= 1f && Mathf.Abs(dial - center) <= tolerance)
                 complete();

@@ -56,6 +56,7 @@
       companyName: manifest.companyName,
       productName: manifest.productName,
       productVersion: manifest.productVersion,
+      autoSyncPersistentDataPath: true,
       matchWebGLToCanvasSize: true,
       showBanner(message, type) {
         if (type === 'error') fail(message)

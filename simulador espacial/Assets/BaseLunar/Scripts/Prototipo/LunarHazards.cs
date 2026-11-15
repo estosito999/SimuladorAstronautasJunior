@@ -19,9 +19,15 @@ namespace BaseLunar
         public float RadiationDanger => exposure <= HighExposure ? 0f :
             Mathf.Lerp(0.3f, 1f, (exposure - HighExposure) / (1 - HighExposure));
 
-        public (float Exposure, float Damage) CaptureState() => (exposure, radiationDamage);
+        [System.Serializable]
+        public struct Checkpoint
+        {
+            public float Exposure, Damage;
+        }
 
-        public void RestoreState((float Exposure, float Damage) state) => (exposure, radiationDamage) = state;
+        public Checkpoint CaptureState() => new() { Exposure = exposure, Damage = radiationDamage };
+
+        public void RestoreState(Checkpoint state) => (exposure, radiationDamage) = (state.Exposure, state.Damage);
 
         public void Update(EvaCrewState crew, AirlockController airlock, ResourceManager resources, float seconds,
             bool onProtectedRoute)

@@ -23,6 +23,7 @@ namespace BaseLunar
         public static readonly Vector2 PlayerBerth = LandingCenter + Vector2.right * 2.36f;
         public static readonly Vector2 Bedroom = new(0.7f, 3.25f);
         public static readonly Vector2 BedroomTelevision = new(-2.03f, 3.64f);
+        public static readonly Vector2 BedroomCat = new(2.22f, 3.46f);
         public const int CommunicationsRoom = 5;
         public const int ResearchRoom = 6;
         public static readonly Vector2 ResearchUplink = new(0, 0.54f);
@@ -137,8 +138,7 @@ namespace BaseLunar
                 art.Kit(field, "cave-rocks", point, new Vector2(size, size * 0.8f),
                     -5, (float)random.NextDouble() * 55f - 27.5f);
             }
-            art.Kit(field, "cave-rock-arch", new Vector2(EastEdge - 4f, -10.7f),
-                new Vector2(2.8f, 1.7f), -2, -12);
+            DrawRockWithBone(field, new Vector2(EastEdge - 4f, -10.7f));
 
             Runway(field, new Vector2(OuterGateX, 0), new Vector2(EastEdge - 3.4f, 0));
             Runway(field, new Vector2(SolarJob.x, 0), SolarJob);
@@ -149,12 +149,31 @@ namespace BaseLunar
             LandingPad(field, AntennaJob - Vector2.up * 0.95f, new Vector2(4f, 3.7f));
             LandingPad(field, ShieldJob, new Vector2(4.7f, 4.4f));
             LandingPad(field, LandingCenter, new Vector2(9.6f, 4.4f));
+            CodePoster(field, SolarJob + new Vector2(1.7f, -3f), "AÑA");
+            CodePoster(field, AntennaJob + new Vector2(-1.7f, 3f), "US");
             foreach (Vector2 berth in new[] { MaraBerth, PlayerBerth })
             {
                 art.Disc(field, "Contorno de atraque", berth, new Vector2(3.88f, 3.72f), Ink("C58551"), -4);
                 art.Disc(field, "Superficie de atraque", berth, new Vector2(3.67f, 3.48f), Ink("52606B"), -3);
                 art.Line(field, berth - Vector2.right * 1.67f, berth + Vector2.right * 1.67f, 0.06f, Ink("9CAAAE"), -2);
             }
+        }
+
+        private void DrawRockWithBone(Transform field, Vector2 position)
+        {
+            Transform rock = Group(field, "Roca con forma de pantalón", position, -12f);
+            art.Kit(rock, "cave-rock-arch", Vector2.zero, new Vector2(2.8f, 1.7f), -2);
+            Transform bone = Group(rock, "Hueso del tripulante", new Vector2(0.03f, 0.64f), 6f);
+            Color outline = Ink("48424A"), ivory = Ink("FFF1D8");
+            art.Disc(bone, "Abertura", Vector2.zero, new Vector2(0.72f, 0.27f), outline, -1);
+            art.Line(bone, Vector2.zero, Vector2.up * 0.90f, 0.43f, outline, 0);
+            for (int side = -1; side <= 1; side += 2)
+                art.Disc(bone, "Cabeza del hueso", new Vector2(side * 0.17f, 0.95f),
+                    Vector2.one * 0.47f, outline, 0);
+            art.Line(bone, Vector2.up * 0.06f, Vector2.up * 0.93f, 0.30f, ivory, 1);
+            for (int side = -1; side <= 1; side += 2)
+                art.Disc(bone, "Extremo marfil", new Vector2(side * 0.17f, 0.96f),
+                    Vector2.one * 0.35f, ivory, 1);
         }
 
         private void Runway(Transform field, Vector2 a, Vector2 b)
@@ -374,6 +393,77 @@ namespace BaseLunar
                         SleepPod(room, new Vector2(i * 1.5f, 2.24f), accent);
                     DrawMarsTrekConsole(room);
                     break;
+            }
+            if (index == 0 || index == 4 || index == ResearchRoom)
+                AlienDecor(room, index);
+            if (index == 0)
+                CodePoster(room, new Vector2(3.35f, 4.30f), "PELO");
+            if (index == ResearchRoom)
+                CodePoster(room, new Vector2(3.1f, 3.55f), "1983");
+        }
+
+        private void CodePoster(Transform parent, Vector2 position, string code)
+        {
+            Transform poster = Group(parent, $"Cartel de canje {code}", position);
+            poster.localScale = Vector3.one * 0.72f;
+            art.Plate(poster, "Soporte", new Vector2(0f, -0.51f), new Vector2(0.23f, 0.8f), Ink("555764"), 8);
+            art.Plate(poster, "Marco", Vector2.zero, new Vector2(2.25f, 0.99f), Ink("E69B53"), 9);
+            art.Plate(poster, "Placa", Vector2.zero, new Vector2(2.06f, 0.80f), Ink("272B38"), 10);
+            foreach (float side in new[] { -1f, 1f })
+                art.Disc(poster, "Remache", new Vector2(side * 0.91f, 0f), Vector2.one * 0.09f, Ink("FFD5A0"), 11);
+
+            Transform label = Group(poster, "Código", Vector2.zero);
+            TextMesh letters = label.gameObject.AddComponent<TextMesh>();
+            letters.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            letters.text = code;
+            letters.anchor = TextAnchor.MiddleCenter;
+            letters.fontStyle = FontStyle.Bold;
+            letters.fontSize = 64;
+            letters.characterSize = 0.10f;
+            letters.color = Ink("FFF5E4");
+            MeshRenderer renderer = label.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = letters.font.material;
+            renderer.sortingOrder = 12;
+        }
+
+        private void AlienDecor(Transform room, int index)
+        {
+            bool bedroom = index == 0;
+            Vector2 p = bedroom ? new Vector2(-1.02f, 4.85f) : new Vector2(-2.7f, 3.62f);
+            Transform poster = Group(room, "Póster de avistamientos", p, bedroom ? -5f : 6f);
+            art.Plate(poster, "Marco", Vector2.zero, new Vector2(1.39f, 0.91f), Ink("3B3946"), 5);
+            art.Plate(poster, "Cielo", Vector2.zero, new Vector2(1.25f, 0.78f), Ink(bedroom ? "293C55" : "3D334B"), 6);
+            for (int i = 0; i < 6; i++)
+                art.Disc(poster, "Estrella", new Vector2(-0.51f + i * 0.19f, 0.23f - i % 2 * 0.12f),
+                    Vector2.one * 0.04f, Ink("F1DEC8"), 7);
+            if (index == ResearchRoom)
+            {
+                art.Disc(poster, "Rostro extraterrestre", Vector2.up * 0.05f, new Vector2(0.47f, 0.50f), Ink("A5C9A5"), 8);
+                for (int side = -1; side <= 1; side += 2)
+                    art.Plate(poster, "Ojo del extraterrestre", new Vector2(side * 0.106f, 0.05f),
+                        new Vector2(0.16f, 0.075f), Ink("26283A"), 9, 24f * side);
+            }
+            else
+            {
+                art.Disc(poster, "Cúpula del ovni", Vector2.up * 0.09f, new Vector2(0.35f, 0.27f), Ink("87C1BC"), 8);
+                art.Disc(poster, "Platillo volante", Vector2.zero, new Vector2(0.65f, 0.18f), Ink("D1C9D8"), 9);
+                art.Plate(poster, "Rayo tractor", new Vector2(0f, -0.17f), new Vector2(0.17f, 0.22f),
+                    Ink("B6B171"), 8);
+            }
+            art.Plate(poster, "Leyenda", Vector2.down * 0.31f, new Vector2(0.74f, 0.035f), Ink("E3C4A0"), 9);
+            if (bedroom || index == ResearchRoom)
+            {
+                Vector2 plush = bedroom ? Bedroom + new Vector2(0.57f, 0.22f) : new Vector2(-2.51f, 1.7f);
+                Color cloth = Ink(bedroom ? "8BAD83" : "A494C1");
+                art.Disc(room, "Peluche extraterrestre", plush, new Vector2(0.33f, 0.25f), cloth, 7);
+                art.Disc(room, "Cabeza del peluche", plush + Vector2.up * 0.20f, new Vector2(0.37f, 0.28f), cloth, 8);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    art.Disc(room, "Botón del peluche", plush + new Vector2(0.086f * side, 0.21f),
+                        Vector2.one * 0.067f, Ink("362C43"), 9);
+                    art.Disc(room, "Pata del peluche", plush + new Vector2(side * 0.12f, -0.08f),
+                        new Vector2(0.16f, 0.10f), cloth, 8);
+                }
             }
         }
 

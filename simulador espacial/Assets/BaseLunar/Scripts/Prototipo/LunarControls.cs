@@ -10,7 +10,7 @@ namespace BaseLunar
         private static Gamepad lastPad;
         private static bool padWasLast;
         public static bool UsingPS4 => padWasLast && IsPS4(lastPad);
-        public static string ClosePrompt => UsingPS4 ? "○  ·  Salir" : "Esc  ·  Salir";
+        public static string ClosePrompt => UsingPS4 ? "□  ·  Salir" : "E  ·  Salir";
 
         public static Gamepad PS4
         {

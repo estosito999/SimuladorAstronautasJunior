@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -20,16 +21,28 @@ namespace BaseLunar
             public int LastCompletedDay;
         }
 
+        private const int CampaignSaveVersion = 1;
+        private static string CampaignSavePath => Path.Combine(Application.persistentDataPath, "campana-selene.json");
+
+        [Serializable]
+        private struct JobCheckpoint
+        {
+            public bool Done;
+            public int LastDay;
+        }
+
+        [Serializable]
         private sealed class DayCheckpoint
         {
-            public int Day, Packets, Errors;
+            public int Version, Day, Packets, Errors;
             public float Stress, Fatigue, CampaignTime;
             public bool Equipped;
             public float Tank;
             public Vector2 Position;
+            public LunarCat.Checkpoint Cat;
             public ResourceManager.Checkpoint Station;
-            public (float Exposure, float Damage) Hazards;
-            public (bool Done, int LastDay)[] Jobs;
+            public LunarHazards.Checkpoint Hazards;
+            public JobCheckpoint[] Jobs;
             public bool[] Tapes;
         }
 
@@ -46,14 +59,27 @@ namespace BaseLunar
         private readonly LunarHazards hazards = new();
         private readonly LunarExercise exerciseGame = new();
         private LunarCrewArt crewArt;
+        private LunarCrewArt replayCrewArt;
         private LunarDeathAnimation deathAnimation;
         private LunarArrival cinematic;
+        private LunarArrival replayCinematic;
+        private LunarGalleryReplay gallery;
+        private LunarAudio audio;
+        private LunarCat cat;
+        private LunarCollection.SecretCard secretCard;
+        private bool SecretOpen => secretCard != LunarCollection.SecretCard.None;
+        private float victoryCodeShownAt;
+        private bool paused;
+        private float resumeScale = 1f;
+        private float catPetUntil;
+        private float expiredCinemaEnds;
         private Rigidbody2D playerBody;
         private bool collectionsOpen;
         private readonly LunarJunior junior = new();
         private static bool playOnReload;
         private static DayCheckpoint pendingDayReload;
         private DayCheckpoint dayCheckpoint;
+        private DayCheckpoint savedCampaign;
         private static readonly Vector2 TerminalPosition = new(-3.24f, 0.65f);
         private static readonly Color SurfaceSky = Ink("754438"), SpaceSky = Ink("0D1425");
         private const int DailyLimit = LunarWorkSchedule.DailySlots;
@@ -86,6 +112,7 @@ namespace BaseLunar
         private bool Sleeping => sleepProgress >= 0f;
         private bool Transmitting => transmissionEndsAt > 0f;
         private Job nearby, active;
+        private bool MinigameOpen => practice || active != null || marsTrekOpen;
         private int calibrationErrors;
         private float poweredAt;
         private string notice;
@@ -94,6 +121,7 @@ namespace BaseLunar
         private LunarHud hud;
         private Transform world;
         private bool started;
+        private float openingMessageUntil;
         private bool campaignExpired;
         private bool dismissed, dismissalPrompt;
         private bool retryPrompt;
@@ -129,6 +157,20 @@ namespace BaseLunar
             BuildTerminal();
             BuildSystems();
             cinematic = new LunarArrival(world, art, airlock, playerBody, crewArt, tutorial);
+            audio = new LunarAudio(gameObject);
+            Transform replayActor = Group(world, "Tripulante de galería", Vector2.zero);
+            Rigidbody2D replayBody = replayActor.gameObject.AddComponent<Rigidbody2D>();
+            replayBody.simulated = false;
+            replayActor.gameObject.SetActive(false);
+            replayCrewArt = new LunarCrewArt(replayActor, art);
+            ApplyPilotSkin();
+            replayCinematic = new LunarArrival(world, art, null, replayBody, replayCrewArt, null);
+            gallery = new LunarGalleryReplay(world, art, replayCinematic, audio);
+            cinematic.HeroMoment += audio.Hero;
+            replayCinematic.HeroMoment += audio.Hero;
+            cinematic.LanternSpoken += audio.LanternVoice;
+            replayCinematic.LanternSpoken += audio.LanternVoice;
+            cat = new LunarCat(world, art, LunarMap.BedroomCat);
             BuildJobs();
             BuildCamera();
             hud = new LunarHud();
@@ -150,9 +192,10 @@ namespace BaseLunar
             {
                 DayCheckpoint snapshot = pendingDayReload;
                 pendingDayReload = null;
-                RestoreDay(snapshot);
+                RestoreDay(snapshot, "Día reiniciado");
                 return;
             }
+            savedCampaign = LoadCampaign();
             if (!playOnReload)
                 return;
             playOnReload = false;
@@ -303,13 +346,53 @@ namespace BaseLunar
             bool interact = (keys?.eKey.wasPressedThisFrame ?? false) || (pad?.buttonWest.wasPressedThisFrame ?? false);
             bool options = pad?.startButton.wasPressedThisFrame ?? false;
             bool skip = (keys?.nKey.wasPressedThisFrame ?? false) || options;
-            bool cancel = (keys?.escapeKey.wasPressedThisFrame ?? false) || (pad?.buttonEast.wasPressedThisFrame ?? false);
+            bool escape = keys?.escapeKey.wasPressedThisFrame ?? false;
+            bool cancel = escape || (pad?.buttonEast.wasPressedThisFrame ?? false);
             bool mapInput = (keys?.mKey.wasPressedThisFrame ?? false) || (keys?.tabKey.wasPressedThisFrame ?? false) ||
                 (pad?.buttonNorth.wasPressedThisFrame ?? false);
+            if (gallery.Active)
+            {
+                if (cancel)
+                    CloseReplay();
+                else
+                    gallery.Tick(Time.unscaledDeltaTime);
+                return;
+            }
+            if (SecretOpen)
+            {
+                if (cancel)
+                    secretCard = LunarCollection.SecretCard.None;
+                return;
+            }
+            if (openingMessageUntil > 0f)
+            {
+                if (confirm || skip || Time.unscaledTime >= openingMessageUntil)
+                    BeginArrival();
+                return;
+            }
             if (cinematic.Playing)
             {
                 if ((skip && !cinematic.Abandoning) || cinematic.Tick(Time.unscaledDeltaTime))
                     FinishCinematic();
+                return;
+            }
+            if (paused)
+            {
+                if (junior.Selected >= 0)
+                    UpdateJunior(interact);
+                else if (cancel)
+                {
+                    if (collectionsOpen) collectionsOpen = false;
+                    else ResumeGame();
+                }
+                else if (options && !collectionsOpen)
+                    ResumeGame();
+                return;
+            }
+            if (started && !Finished && !MinigameOpen && !Transmitting && (!Sleeping || journalOpen) &&
+                (escape || (options && day > 0)))
+            {
+                PauseGame();
                 return;
             }
             if (Sleeping)
@@ -335,12 +418,19 @@ namespace BaseLunar
                         airlock.enabled = false;
                         LockCinematic();
                         cinematic.BeginVictory();
+                        audio.Outcome("End.Victory");
                         cameraFollow = new Vector3(cinematic.Focus.x, cinematic.Focus.y, -10f);
+                    }
+                    else if (campaignExpired)
+                    {
+                        expiredCinemaEnds = Time.unscaledTime + 5.4f;
+                        audio.Outcome("End.Expired");
                     }
                 }
                 return;
             }
-            if (keys != null && keys.rKey.wasPressedThisFrame && Finished && !AnimatingDeath)
+            if (keys != null && keys.rKey.wasPressedThisFrame && Finished && !AnimatingDeath &&
+                Time.unscaledTime >= expiredCinemaEnds)
             {
                 if (!victory && dayCheckpoint != null)
                     RetryDay();
@@ -352,16 +442,14 @@ namespace BaseLunar
             if (!started)
             {
                 if (junior.Selected >= 0)
-                {
-                    if (cancel)
-                        junior.Close();
-                    else if (junior.Tick(Time.unscaledDeltaTime))
-                        LunarCollection.Unlock($"Junior.{junior.Selected}");
-                }
+                    UpdateJunior(interact);
                 else if (collectionsOpen && cancel)
                     collectionsOpen = false;
                 else if (!collectionsOpen && keyboardConfirm)
-                    StartMission();
+                {
+                    if (savedCampaign != null) ContinueCampaign();
+                    else StartMission();
+                }
                 return;
             }
 
@@ -373,6 +461,8 @@ namespace BaseLunar
 
             if (Finished)
             {
+                if (victory && Time.unscaledTime >= victoryCodeShownAt + 2.5f && keyboardConfirm)
+                    ReturnToMenu();
                 movement.ControlsLocked = true;
                 return;
             }
@@ -383,29 +473,26 @@ namespace BaseLunar
                     retryPrompt = false;
                 return;
             }
-            if (options && day > 0 && !Transmitting)
-            {
-                AskRetry();
-                return;
-            }
-
             if (day > 0 && Time.time >= nextLeakNotice && !jobs[2].Done)
             {
                 nextLeakNotice = Time.time + 32f;
                 Message("La reserva de O₂ cae. Purga el filtro en soporte vital.");
             }
 
-            if (!Transmitting && cancel)
+            if (!Transmitting && MinigameOpen && interact)
             {
-                active = null;
+                CloseMinigame();
+                return;
+            }
+
+            if (!Transmitting && !MinigameOpen && cancel)
+            {
                 showMap = false;
                 terminalPanel = false;
                 telescopePanel = false;
                 televisionOpen = false;
-                marsTrekOpen = false;
                 dismissalPrompt = false;
                 vhs.Stop();
-                practice = false;
                 hud.CancelDrag();
             }
 
@@ -415,7 +502,7 @@ namespace BaseLunar
                 showMap = !showMap;
 
             movement.ControlsLocked = showMap || active != null || terminalPanel || telescopePanel ||
-                televisionOpen || marsTrekOpen || dismissalPrompt || practice;
+                televisionOpen || marsTrekOpen || dismissalPrompt || practice || Time.time < catPetUntil;
             if (day == 0 && !showMap && !instructorPanel && !telescopePanel && !practice)
                 tutorial.Tick(crew.Position, Time.deltaTime);
             if (day > 0 && CheckSurvivalFailure())
@@ -423,7 +510,7 @@ namespace BaseLunar
 
             if (Transmitting)
             {
-                if (Time.unscaledTime >= transmissionEndsAt)
+                if (Time.time >= transmissionEndsAt)
                 {
                     transmissionEndsAt = 0f;
                     if (practice)
@@ -451,7 +538,7 @@ namespace BaseLunar
             if (televisionOpen)
             {
                 int tape = vhs.Current;
-                if (vhs.Update(Time.unscaledTime))
+                if (vhs.Update(Time.time))
                 {
                     LunarCollection.Unlock($"VHS.{tape}");
                     stress *= 0.5f;
@@ -462,7 +549,7 @@ namespace BaseLunar
 
             if (marsTrekOpen)
             {
-                if (marsTrekCloseAt > 0f && Time.unscaledTime >= marsTrekCloseAt)
+                if (marsTrekCloseAt > 0f && Time.time >= marsTrekCloseAt)
                     marsTrekOpen = false;
                 return;
             }
@@ -473,14 +560,14 @@ namespace BaseLunar
             bool jump = (keys?.spaceKey.wasPressedThisFrame ?? false) || (pad?.buttonSouth.wasPressedThisFrame ?? false);
             if (practice)
             {
-                if (tutorial.PracticeTask == LunarExercise.Task && exerciseGame.Update(Time.unscaledTime, jump))
+                if (tutorial.PracticeTask == LunarExercise.Task && exerciseGame.Update(Time.time, jump))
                     FinishPractice(true);
                 return;
             }
 
             if (active != null)
             {
-                if (active == jobs[LunarExercise.Task] && exerciseGame.Update(Time.unscaledTime, jump))
+                if (active == jobs[LunarExercise.Task] && exerciseGame.Update(Time.time, jump))
                 {
                     CompleteTask();
                     return;
@@ -531,24 +618,35 @@ namespace BaseLunar
 
             if (AnimatingDeath)
                 deathAnimation.Tick(Time.unscaledDeltaTime);
+            LunarArrival view = gallery.Active ? replayCinematic : cinematic;
             float aspect = Mathf.Max(0.4f, cameraView.aspect);
             float overview = Mathf.Max(32f, 68f / aspect);
-            Vector2 target = cinematic.Playing ? cinematic.Focus :
+            Vector2 target = view.Playing ? view.Focus :
+                gallery.Active ? gallery.Focus :
                 showMap ? new Vector2(20f + overview * aspect * 0.19f, 2f) :
                 Sleeping ? Vector2.Lerp(crew.Position, LunarMap.Bedroom, Mathf.Sin(Mathf.PI * sleepProgress)) : crew.Position;
             float amount = 1f - Mathf.Exp(-Time.unscaledDeltaTime * 7f);
             float closeView = Mathf.Max(6.3f, 6.6f / aspect);
-            float zoom = cinematic.Playing ? Mathf.Max(cinematic.Zoom, closeView) : showMap ? overview : closeView;
-            if (cinematic.Playing && cinematic.Winning)
-                zoom = Mathf.Max(cinematic.Zoom, (cinematic.VictoryCloseup ? 2.1f : 5.1f) / aspect);
-            cameraView.backgroundColor = cinematic.Playing && cinematic.VictorySpace ? SpaceSky : SurfaceSky;
+            float zoom = view.Playing ? Mathf.Max(view.Zoom, closeView) : showMap ? overview : closeView;
+            if (view.Playing && view.Winning)
+                zoom = Mathf.Max(view.Zoom, (view.VictoryCloseup ? 2.1f : 5.1f) / aspect);
+            if (gallery.Active && !view.Playing)
+                zoom = gallery.Victory ? Mathf.Max(1.72f, 2.1f / aspect) : Mathf.Max(3.25f, 4.1f / aspect);
+            cameraView.backgroundColor = view.Playing && view.VictorySpace ? SpaceSky : SurfaceSky;
             if (AnimatingDeath && deathAnimation.Cause != CrewDeathCause.Ejection &&
                 deathAnimation.Cause != CrewDeathCause.Dismissed && deathAnimation.Cause != CrewDeathCause.Blackout)
                 zoom = Mathf.Max(3.3f, 3.7f / aspect);
             cameraView.orthographicSize = Mathf.Lerp(cameraView.orthographicSize, zoom, amount);
             cameraFollow = Vector3.Lerp(cameraFollow,
                 new Vector3(target.x, target.y, -10f), amount);
-            bool survival = day > 0 && !Finished && !Sleeping;
+            bool survival = day > 0 && !Finished && !Sleeping && !paused;
+            audio.Mix(started && openingMessageUntil <= 0f && !cinematic.Playing && !Finished && !Sleeping && !paused,
+                crew.CurrentZone == CrewZone.Exterior, Time.unscaledDeltaTime);
+            audio.Work(Finished || paused ? -1 : active != null ? jobs.IndexOf(active) : practice ? tutorial.PracticeTask :
+                junior.Selected >= 0 && !junior.Completed ? 8 + junior.Selected : -1,
+                Time.time);
+            if (started && openingMessageUntil <= 0f && !cinematic.Playing && !Finished && !Sleeping)
+                cat.Tick(crew.Position, crew.CurrentZone == CrewZone.Interior, Time.deltaTime);
             bool onProtectedRoute = crew.CurrentZone == CrewZone.Exterior && map.IsOnProtectedPath(crew.Position);
             hazards.Update(crew, airlock, resources, survival ? Time.deltaTime : 0f, onProtectedRoute);
             if (survival)
@@ -559,7 +657,7 @@ namespace BaseLunar
             }
             movement.OxygenSpeedMultiplier = survival ? Mathf.Lerp(1f, 0.48f, hazards.OxygenDanger) : 1f;
             cameraView.transform.position = cameraFollow +
-                (survival && !showMap && !Sleeping ? (Vector3)hazards.CameraShake(Time.unscaledTime) : Vector3.zero);
+                (survival && !showMap && !Sleeping ? (Vector3)hazards.CameraShake(Time.time) : Vector3.zero);
             map.AnimateGates(airlock.DoorsOpen, airlock.InnerFieldActive, airlock.OuterFieldActive, Time.deltaTime);
             chamberVapor.Tick(airlock.Pressure, Time.deltaTime);
         }
@@ -599,6 +697,7 @@ namespace BaseLunar
             (crew.Position - LunarMap.TelescopePosition).sqrMagnitude <= 1.45f * 1.45f;
         private bool NearTelevision() => day > 0 && crew.CurrentZone == CrewZone.Interior &&
             (crew.Position - LunarMap.BedroomTelevision).sqrMagnitude <= 1.25f * 1.25f;
+        private bool NearCat() => crew.CurrentZone == CrewZone.Interior && cat.IsNear(crew.Position);
         private bool NearMarsTrek() => day > 0 && crew.CurrentZone == CrewZone.Interior &&
             (crew.Position - map.Centers[LunarMap.ResearchRoom] - LunarMap.MarsTrekConsole).sqrMagnitude <= 1.4f * 1.4f;
         private bool NearShip() => day > 0 && crew.HasSpaceSuit && crew.CurrentZone == CrewZone.Exterior &&
@@ -614,6 +713,7 @@ namespace BaseLunar
             if (NearTerminal()) return "Terminal de jornada";
             if (NearTelescope()) return "Telescopio";
             if (NearTelevision()) return "Televisor VHS";
+            if (NearCat()) return cat.Following ? "Acariciar a Miga · sentar" : "Acariciar a Miga · seguir";
             if (NearMarsTrek()) return "Cartografía Mars Trek";
             if (NearShip()) return "Embarcar y despegar";
             if (day == 0) return null;
@@ -663,6 +763,21 @@ namespace BaseLunar
                 return;
             }
 
+            if (NearCat() && Time.time >= catPetUntil)
+            {
+                catPetUntil = Time.time + 0.58f;
+                movement.ControlsLocked = true;
+                crewArt.Pet(cat.Position.x - crew.Position.x);
+                if (cat.Pet(crew.Position))
+                {
+                    audio.CatSpin();
+                    Message("¡U I I A I O U!");
+                }
+                else
+                    audio.Pet();
+                return;
+            }
+
             if (NearMarsTrek())
             {
                 for (int i = 0; i < marsOrder.Length; i++)
@@ -689,6 +804,7 @@ namespace BaseLunar
                 airlock.enabled = false;
                 LockCinematic();
                 cinematic.BeginAbandonment();
+                audio.Outcome("End.Abandoned");
                 return;
             }
 
@@ -696,6 +812,7 @@ namespace BaseLunar
             {
                 active = nearby;
                 hud.ResetTask();
+                audio.Task(jobs.IndexOf(active));
                 if (active == jobs[LunarExercise.Task])
                     exerciseGame.Reset(day);
                 movement.ControlsLocked = true;
@@ -752,6 +869,14 @@ namespace BaseLunar
         {
             started = true;
             LockCinematic();
+            openingMessageUntil = Time.unscaledTime + 13f;
+        }
+
+        private void BeginArrival()
+        {
+            if (openingMessageUntil <= 0f)
+                return;
+            openingMessageUntil = 0f;
             cinematic.BeginArrival();
             cameraFollow = new Vector3(cinematic.Focus.x, cinematic.Focus.y, -10f);
         }
@@ -770,13 +895,14 @@ namespace BaseLunar
             {
                 cinematic.FinishVictory();
                 LunarCollection.Unlock("End.Victory");
+                victoryCodeShownAt = Time.unscaledTime;
                 return;
             }
             if (cinematic.Abandoning)
             {
                 cinematic.FinishAbandonment();
                 LunarCollection.Unlock("End.Abandoned");
-                Dismiss("Abandonaste Selene antes de cumplir tu turno.");
+                Dismiss("Abandonaste Selene antes de cumplir tu turno.", playMusic: false);
                 return;
             }
             bool departure = cinematic.Departure;
@@ -911,7 +1037,7 @@ namespace BaseLunar
                 return;
             LunarCollection.Unlock($"Mars.{index}");
             if (++marsRound == marsOrder.Length)
-                marsTrekCloseAt = Time.unscaledTime + 3.4f;
+                marsTrekCloseAt = Time.time + 3.4f;
         }
 
         private void AdvanceDay()
@@ -952,6 +1078,7 @@ namespace BaseLunar
             movement.ControlsLocked = true;
             instructorPanel = false;
             hud.ResetTask();
+            audio.Task(tutorial.PracticeTask);
             if (tutorial.PracticeTask == LunarExercise.Task)
                 exerciseGame.Reset(1);
         }
@@ -961,9 +1088,26 @@ namespace BaseLunar
             practice = false;
             hud.CancelDrag();
             if (solved)
+            {
+                audio.Success();
                 ContinueTour();
+            }
             else
                 instructorPanel = true;
+        }
+
+        private void CloseMinigame()
+        {
+            hud.InterruptGesture();
+            if (practice)
+                FinishPractice(false);
+            else
+            {
+                active = null;
+                marsTrekOpen = false;
+                hud.CancelDrag();
+            }
+            movement.ControlsLocked = false;
         }
 
         private void ContinueTour()
@@ -993,9 +1137,10 @@ namespace BaseLunar
         {
             crewArt.Refresh(state);
             map.ShowStoredSuit(!state.HasSpaceSuit);
-            if (!state.IsDead)
+            if (!state.IsDead || AnimatingDeath)
                 return;
             LunarCollection.Unlock($"Death.{state.DeathCause}");
+            audio.Outcome($"Death.{state.DeathCause}");
             if (state.DeathCause == CrewDeathCause.Hunger)
                 crewArt.ShowSuit(false);
             deathAnimation.Play(state.DeathCause, state.HasSpaceSuit);
@@ -1004,7 +1149,7 @@ namespace BaseLunar
             resources.enabled = false;
         }
 
-        private void Dismiss(string reason)
+        private void Dismiss(string reason, bool playMusic = true)
         {
             dismissalPrompt = false;
             dismissalReason = reason;
@@ -1013,17 +1158,19 @@ namespace BaseLunar
             movement.ControlsLocked = true;
             resources.enabled = false;
             deathAnimation.Play(CrewDeathCause.Dismissed);
+            if (playMusic) audio.Outcome("End.NoReport");
         }
 
         private void Message(string content)
         {
             notice = content;
-            noticeUntil = Time.unscaledTime + 4f;
+            noticeUntil = Time.time + 4f;
         }
 
         private void TaskError(string reason)
         {
             calibrationErrors++;
+            audio.Error();
             resources.AdjustHull(-3f);
             Message(reason + " · −3 puntos de casco.");
         }
@@ -1046,6 +1193,7 @@ namespace BaseLunar
             journalJobs.Add((done.Name, done.Impact));
             lastJobNote = done.JournalNote;
             done.Apply();
+            audio.Success();
             if (done == jobs[2])
                 resources.SetOxygenLeak(0);
             done.Marker.color = Ink("65F1AE");
@@ -1066,22 +1214,64 @@ namespace BaseLunar
             LunarCollection.Unlock($"Report.{day}");
         }
 
-        private void BeginTransmission() => transmissionEndsAt = Time.unscaledTime + TransmissionDuration;
+        private void BeginTransmission() => transmissionEndsAt = Time.time + TransmissionDuration;
 
         private void SaveDay()
         {
             dayCheckpoint = new DayCheckpoint
             {
-                Day = day, Packets = packetsSent, Errors = calibrationErrors,
+                Version = CampaignSaveVersion, Day = day, Packets = packetsSent, Errors = calibrationErrors,
                 Stress = stress, Fatigue = fatigue, CampaignTime = Time.time - poweredAt,
                 Equipped = crew.HasSpaceSuit, Tank = crew.CurrentOxygenTank,
+                Cat = cat.Capture(),
                 Position = crew.Position, Station = resources.CaptureCheckpoint(),
                 Hazards = hazards.CaptureState(), Tapes = vhs.CaptureWatched(),
-                Jobs = jobs.ConvertAll(job => (job.Done, job.LastCompletedDay)).ToArray()
+                Jobs = jobs.ConvertAll(job => new JobCheckpoint { Done = job.Done, LastDay = job.LastCompletedDay }).ToArray()
             };
+            savedCampaign = dayCheckpoint;
+            try
+            {
+                string path = CampaignSavePath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                string temporary = path + ".tmp";
+                File.WriteAllText(temporary, JsonUtility.ToJson(dayCheckpoint));
+                if (File.Exists(path))
+                    File.Replace(temporary, path, null);
+                else
+                    File.Move(temporary, path);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                Debug.LogWarning($"No se pudo guardar la campaña de Selene: {error.Message}");
+            }
         }
 
-        private void RestoreDay(DayCheckpoint snapshot)
+        private DayCheckpoint LoadCampaign()
+        {
+            try
+            {
+                string path = CampaignSavePath;
+                if (!File.Exists(path)) return null;
+                DayCheckpoint snapshot = JsonUtility.FromJson<DayCheckpoint>(File.ReadAllText(path));
+                if (snapshot?.Version == CampaignSaveVersion && snapshot.Day >= 1 && snapshot.Day <= CampaignDays &&
+                    snapshot.Jobs?.Length == jobs.Count && snapshot.Tapes?.Length == LunarVhs.Programs.Length &&
+                    snapshot.Station?.Modules?.Length == LunarMap.RoomNames.Length + 1 && snapshot.Cat.Trail != null)
+                    return snapshot;
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is ArgumentException)
+            {
+                Debug.LogWarning($"No se pudo leer la campaña de Selene: {error.Message}");
+            }
+            return null;
+        }
+
+        private void ContinueCampaign()
+        {
+            if (savedCampaign != null)
+                RestoreDay(savedCampaign, "Partida continuada");
+        }
+
+        private void RestoreDay(DayCheckpoint snapshot, string notice)
         {
             started = true;
             cinematic.FinishArrival();
@@ -1092,6 +1282,7 @@ namespace BaseLunar
             cameraView.transform.position = cameraFollow;
             airlock.RestoreGameplay();
             crew.RestoreSuit(snapshot.Equipped, snapshot.Tank);
+            cat.Restore(snapshot.Cat);
             day = snapshot.Day;
             packetsSent = snapshot.Packets;
             calibrationErrors = snapshot.Errors;
@@ -1103,7 +1294,8 @@ namespace BaseLunar
             for (int i = 0; i < jobs.Count; i++)
             {
                 Job job = jobs[i];
-                (job.Done, job.LastCompletedDay) = snapshot.Jobs[i];
+                JobCheckpoint saved = snapshot.Jobs[i];
+                (job.Done, job.LastCompletedDay) = (saved.Done, saved.LastDay);
                 if (job.Done)
                 {
                     completed++;
@@ -1120,7 +1312,7 @@ namespace BaseLunar
             movement.ControlsLocked = false;
             resources.enabled = true;
             dayCheckpoint = snapshot;
-            Message($"Día {day} reiniciado. Estás al comienzo de la jornada.");
+            Message($"{notice} · Día {day}. Estás al comienzo de la jornada.");
         }
 
         private void RetryDay()
@@ -1136,6 +1328,60 @@ namespace BaseLunar
             retryPrompt = true;
             movement.ControlsLocked = true;
             hud.CancelDrag();
+        }
+
+        private void OpenJunior(int module)
+        {
+            junior.Open(module);
+            audio.Task(8 + module);
+        }
+
+        private void ApplyPilotSkin()
+        {
+            bool bald = LunarCollection.UsesBaldSkin;
+            crewArt.SetBald(bald);
+            replayCrewArt.SetBald(bald);
+        }
+
+        private void UpdateJunior(bool close)
+        {
+            if (close)
+                junior.Close();
+            else if (junior.Tick(Time.unscaledDeltaTime))
+            {
+                LunarCollection.Unlock($"Junior.{junior.Selected}");
+                audio.Success();
+            }
+        }
+
+        private void PauseGame()
+        {
+            paused = true;
+            resumeScale = Time.timeScale;
+            Time.timeScale = 0f;
+            movement.ControlsLocked = true;
+            hud.InterruptGesture();
+        }
+
+        private void ResumeGame()
+        {
+            if (!paused) return;
+            paused = false;
+            collectionsOpen = false;
+            Time.timeScale = resumeScale;
+        }
+
+        private void OpenReplay(string key, string title)
+        {
+            cinematic.HideForReplay();
+            gallery.Open(key, title);
+            cameraFollow = new Vector3(gallery.Focus.x, gallery.Focus.y, -10f);
+        }
+
+        private void CloseReplay()
+        {
+            gallery.Close();
+            cinematic.RestoreAfterReplay();
         }
 
         private void Restart()
@@ -1158,6 +1404,8 @@ namespace BaseLunar
         private void OnDestroy()
         {
             InputSystem.onEvent -= LunarControls.TrackActivity;
+            ResumeGame();
+            audio?.Dispose();
             hud?.ReleaseTextures();
             art?.ReleaseKitMeshes();
         }
@@ -1168,21 +1416,47 @@ namespace BaseLunar
                 return;
 
             bool exercise = practice ? tutorial.PracticeTask == LunarExercise.Task : active == jobs[LunarExercise.Task];
-            hud.Begin(!cinematic.Playing && !Sleeping && (!started || (Finished && !AnimatingDeath) ||
+            bool allowResultsPointer = Finished && !AnimatingDeath && (!victory || Time.unscaledTime >= victoryCodeShownAt + 2.5f);
+            hud.Begin(paused || gallery.Active || SecretOpen || (!cinematic.Playing && !Sleeping && (!started || allowResultsPointer ||
                 (!Finished && (retryPrompt || terminalPanel || telescopePanel || televisionOpen || marsTrekOpen ||
-                    dismissalPrompt || showMap || (!Transmitting && !exercise && (practice || active != null))))));
+                    dismissalPrompt || showMap || (!Transmitting && !exercise && (practice || active != null)))))));
             RenderHud();
             hud.DrawControllerCursor();
         }
 
         private void RenderHud()
         {
+            if (openingMessageUntil > 0f)
+            {
+                hud.OpeningMessage(BeginArrival);
+                return;
+            }
+            if (gallery.Active)
+            {
+                hud.ReplayHud(gallery, replayCinematic, CloseReplay);
+                return;
+            }
+            if (SecretOpen)
+            {
+                hud.SecretPortrait(secretCard, () => secretCard = LunarCollection.SecretCard.None);
+                return;
+            }
             if (cinematic.Playing)
             {
                 if (cinematic.Winning)
-                    hud.VictoryCinematic(cinematic.VictorySpace, cinematic.VictoryText);
+                    hud.VictoryCinematic(cinematic, false);
                 else if (!cinematic.Abandoning)
                     hud.Cinematic(cinematic.Caption, cinematic.MaraSpeech, !cinematic.Departure, FinishCinematic);
+                return;
+            }
+            if (paused)
+            {
+                if (junior.Selected >= 0)
+                    hud.JuniorLab(junior);
+                else if (collectionsOpen)
+                    hud.Collection(() => collectionsOpen = false, OpenJunior, OpenReplay, card => secretCard = card, ApplyPilotSkin);
+                else
+                    hud.PauseMenu(ResumeGame, () => collectionsOpen = true, ReturnToMenu);
                 return;
             }
             if (Sleeping)
@@ -1206,9 +1480,14 @@ namespace BaseLunar
                 if (junior.Selected >= 0)
                     hud.JuniorLab(junior);
                 else if (collectionsOpen)
-                    hud.Collection(() => collectionsOpen = false, junior.Open);
+                    hud.Collection(() => collectionsOpen = false, OpenJunior, OpenReplay, card => secretCard = card, ApplyPilotSkin);
                 else
-                    hud.MainMenu(StartMission, () => collectionsOpen = true, QuitGame);
+                    hud.MainMenu(StartMission, savedCampaign?.Day ?? 0, ContinueCampaign, () => collectionsOpen = true, QuitGame);
+                return;
+            }
+            if (victory)
+            {
+                hud.VictoryCode(Time.unscaledTime >= victoryCodeShownAt + 2.5f, Restart, ReturnToMenu);
                 return;
             }
             if (day > 0 && !Finished)
@@ -1223,6 +1502,11 @@ namespace BaseLunar
 
             if (Finished)
             {
+                if (campaignExpired && Time.unscaledTime < expiredCinemaEnds)
+                {
+                    hud.ExpiredCutscene(1f - (expiredCinemaEnds - Time.unscaledTime) / 5.4f);
+                    return;
+                }
                 if (AnimatingDeath)
                 {
                     hud.EndingEffect(deathAnimation.Cause, deathAnimation.Progress);
@@ -1238,19 +1522,19 @@ namespace BaseLunar
                 hud.RetryPrompt(() => retryPrompt = false, RetryDay);
             else if (Transmitting)
             {
-                float progress = 1f - (transmissionEndsAt - Time.unscaledTime) / TransmissionDuration;
+                float progress = 1f - (transmissionEndsAt - Time.time) / TransmissionDuration;
                 hud.Transmission(progress, practice);
             }
             else if (practice)
             {
                 int exercise = tutorial.PracticeTask;
                 if (exercise == LunarExercise.Task)
-                    hud.Exercise(exerciseGame, () => FinishPractice(false), tutorial.Tip);
+                    hud.Exercise(exerciseGame, CloseMinigame, tutorial.Tip);
                 else
                 {
                     Job sample = jobs[exercise];
                     Action solved = exercise == TransmissionTask ? BeginTransmission : () => FinishPractice(true);
-                    hud.Task(sample.Name, sample.Hint, exercise, solved, Message, () => FinishPractice(false), tutorial.Tip);
+                    hud.Task(sample.Name, sample.Hint, exercise, solved, Message, CloseMinigame, tutorial.Tip);
                 }
             }
             else if (instructorPanel && !showMap)
@@ -1279,7 +1563,7 @@ namespace BaseLunar
                     vhs.Stop();
                 });
             else if (marsTrekOpen)
-                hud.MarsTrek(marsOrder, marsRound, marsMiss, SelectMarsSite, () => marsTrekOpen = false);
+                hud.MarsTrek(marsOrder, marsRound, marsMiss, SelectMarsSite, CloseMinigame);
             else if (showMap)
             {
                 hud.MapLabels(cameraView, map.Centers);
@@ -1290,20 +1574,13 @@ namespace BaseLunar
             }
             else if (active != null)
             {
-                void CloseTask()
-                {
-                    active = null;
-                    hud.CancelDrag();
-                    movement.ControlsLocked = false;
-                }
-
                 if (active == jobs[LunarExercise.Task])
-                    hud.Exercise(exerciseGame, CloseTask);
+                    hud.Exercise(exerciseGame, CloseMinigame);
                 else
                 {
                     int task = jobs.IndexOf(active);
                     Action solved = task == TransmissionTask ? BeginTransmission : CompleteTask;
-                    hud.Task(active.Name, active.Hint, task, solved, TaskError, CloseTask);
+                    hud.Task(active.Name, active.Hint, task, solved, TaskError, CloseMinigame);
                 }
             }
             else
@@ -1314,7 +1591,7 @@ namespace BaseLunar
                 hud.Controls(InteractHint(), detail, () => showMap = true);
             }
 
-            if (Time.unscaledTime < noticeUntil)
+            if (Time.time < noticeUntil)
                 hud.Toast(LunarControls.Tutorial(notice), crew.HasSpaceSuit || crew.CurrentZone == CrewZone.Airlock, alertVisible);
             if (alertVisible)
                 hud.HazardAlerts(hazards);
