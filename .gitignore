@@ -1,4 +1,30 @@
+# Dependencies and local web output
 node_modules/
 dist/
 *.tsbuildinfo
 *.log
+.DS_Store
+Thumbs.db
+
+# Unity regenerates these folders and IDE project files
+/simulador espacial/[Ll]ibrary/
+/simulador espacial/[Tt]emp/
+/simulador espacial/[Oo]bj/
+/simulador espacial/[Ll]ogs/
+/simulador espacial/[Uu]ser[Ss]ettings/
+/simulador espacial/[Bb]uild/
+/simulador espacial/[Bb]uilds/
+/simulador espacial/[Mm]emoryCaptures/
+/simulador espacial/[Rr]ecordings/
+/simulador espacial/.vs/
+/simulador espacial/.idea/
+/simulador espacial/*.csproj
+/simulador espacial/*.unityproj
+/simulador espacial/*.sln
+/simulador espacial/*.slnx
+/simulador espacial/*.pidb
+/simulador espacial/*.booproj
+/simulador espacial/*.user
+/simulador espacial/*.userprefs
+/simulador espacial/*.opendb
+/simulador espacial/*.VC.db

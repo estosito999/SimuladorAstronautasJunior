@@ -1,0 +1,63 @@
+.unity-simulator {
+  position: absolute;
+  inset: 0;
+  min-height: 240px;
+  background: #050912;
+}
+
+.unity-simulator-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.unity-simulator-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 28px;
+  background: #050912;
+}
+
+.unity-simulator-message {
+  width: min(100%, 510px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  color: #a78bfa;
+  text-align: center;
+}
+
+.unity-simulator-message h2 {
+  margin: 0;
+  color: #f1f5f9;
+  font-size: clamp(20px, 3vw, 27px);
+}
+
+.unity-simulator-message p {
+  margin: 0;
+  color: #b5c3d6;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.unity-simulator-message progress {
+  width: min(100%, 320px);
+  height: 8px;
+  accent-color: #a78bfa;
+}
+
+.unity-simulator-message button {
+  margin-top: 4px;
+}
+
+.unity-simulator-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

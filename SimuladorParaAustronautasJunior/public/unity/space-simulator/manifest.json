@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "unityVersion": "6000.6.7f1",
+  "requiredUnityVersion": "6000.6.7f1",
+  "productName": "simulador espacial",
+  "companyName": "DefaultCompany",
+  "productVersion": "1.0",
+  "entryScene": "Assets/Scenes/EstacionSelene.unity",
+  "loaderUrl": "Build/SpaceSimulator.loader.js",
+  "dataUrl": "Build/SpaceSimulator.data",
+  "frameworkUrl": "Build/SpaceSimulator.framework.js",
+  "codeUrl": "Build/SpaceSimulator.wasm"
+}
