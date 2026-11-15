@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Plus,
   Minus,
-  Check,
   RotateCcw,
   Leaf,
   ArrowUp,
@@ -28,11 +27,15 @@ import {
   Truck,
   CircleDot,
   Layers,
-  ExternalLink
+  PanelRight,
+  ExternalLink,
+  Activity,
+  Globe
 } from 'lucide-react'
 
 import { createInitialState, metrics, reduce } from './simulation/engine'
 import type { ModuleId, State } from './simulation/types'
+import { getNearestRock, LUNAR_ROCKS } from './simulation/roverExploration'
 import ModulePanel, { modules } from './components/ModulePanel'
 import Telemetry from './components/Telemetry'
 import NetworkPanel from './components/NetworkPanel'
@@ -123,9 +126,9 @@ const MISSIONS: RepoMission[] = [
     subtitle: 'Monitoreo de telemetría en tiempo real y registro con la Red de Espacio Profundo',
     folder: 'openmct',
     url: '/openmct/',
-    moduleId: 'comms',
-    icon: Radio,
-    accentColor: '#a78bfa',
+    moduleId: 'control',
+    icon: Activity,
+    accentColor: '#38bdf8',
     badge: 'Control de Vuelo · DSN',
     description: 'Consola operativa estilo NASA para supervisar en vivo los 10 canales críticos de la estación Selene: potencia, almacenamiento, enlace de comunicaciones y exportación de datos.',
     highlights: [
@@ -150,11 +153,18 @@ function lunaTip(s: State, selected: ModuleId) {
     return 'Prueba a cambiar la luz o el ángulo de los paneles. A 45° de elevación captamos la máxima radiación solar.'
   }
   if (selected === 'rover') {
+    if (s.heldRockId) return '¡La pinza sostiene una roca lunar! Pulsa Guardar muestra para colocarla en el depósito del rover.'
     return s.roverMode === 'charging'
       ? 'La base está recargando la batería del rover por el cable de plataforma. ¡Observa el flujo de energía!'
       : s.roverMode === 'returning'
       ? 'El rover regresa automáticamente a la plataforma de acoplamiento.'
-      : 'Conduce por la superficie lunar con las flechas o WASD. Recuerda vigilar la batería y regresar a recargar.'
+      : 'Explora la zona de 120 × 120 m y busca las rocas marcadas. Detente cerca, baja el brazo y alinea la pinza; después recoge y guarda la muestra.'
+  }
+  if (selected === 'control') {
+    return '¡Estación de Control de Vuelo DSN activa! Coordina telemetría de los 10 canales de la base Selene con las estaciones terrestres de Madrid, Goldstone y Canberra, y sincroniza con la ISS.'
+  }
+  if (selected === 'iss') {
+    return '¡Enlace con la Estación Espacial Internacional (ISS) establecido! A 420 km de altitud orbital, la ISS coordina misiones terrestres (Houston, ESOC, Tsukuba) y retransmite datos espaciales.'
   }
   if (!s.antennaOn) return 'Vamos a compartir nuestros descubrimientos con la Tierra. Enciende el transmisor de la antena.'
   return e.signal >= 65
@@ -173,18 +183,25 @@ export default function App() {
   const telemetry = useMissionTelemetry(s)
   const [selected, setSelected] = useState<ModuleId>('solar')
   const [dialog, setDialog] = useState<'guide' | 'notebook' | 'reset' | null>(null)
-  const [cameraMode, setCameraMode] = useState<'overview' | 'follow'>('overview')
+  const [cameraMode, setCameraMode] = useState<'overview' | 'follow' | 'control' | 'iss'>('overview')
   const [cameraCommand, setCameraCommand] = useState<{ id: number; action: CameraAction }>({ id: 0, action: 'reset' })
   const [quality, setQuality] = useState<'standard' | 'low'>('standard')
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [panelTab, setPanelTab] = useState<'controls' | 'network' | 'telemetry'>('controls')
   const sceneRef = useRef<HTMLDivElement>(null)
+  const panelHeadingRef = useRef<HTMLHeadingElement>(null)
   const currentState = useRef(s)
   currentState.current = s
   const e = metrics(s)
+  const nearestRock = getNearestRock(s)
 
   const select = (id: ModuleId) => {
     dispatch({ type: 'rover-stop' })
     setSelected(id)
-    if (id !== 'rover') setCameraMode('overview')
+    if (id === 'rover') setCameraMode('follow')
+    else if (id === 'control') setCameraMode('control')
+    else if (id === 'iss') setCameraMode('iss')
+    else setCameraMode('overview')
   }
 
   const camera = (action: CameraAction) => {
@@ -192,15 +209,36 @@ export default function App() {
     setCameraCommand(c => ({ id: c.id + 1, action }))
   }
 
+  const inspect = (id: ModuleId) => {
+    select(id)
+    setPanelTab('controls')
+    setPanelOpen(true)
+  }
+
+  const closePanel = () => {
+    setPanelOpen(false)
+    sceneRef.current?.focus({ preventScroll: true })
+  }
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {})
-      setFullscreen(true)
     } else {
       document.exitFullscreen().catch(() => {})
-      setFullscreen(false)
     }
   }
+
+  useEffect(() => {
+    if (!panelOpen || viewMode !== 'simulator' || activeMission) return
+    panelHeadingRef.current?.focus({ preventScroll: true })
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return
+      setPanelOpen(false)
+      sceneRef.current?.focus({ preventScroll: true })
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [panelOpen, viewMode, activeMission])
 
   useEffect(() => {
     const handleFsChange = () => {
@@ -247,7 +285,21 @@ export default function App() {
     const down = (event: KeyboardEvent) => {
       const k = event.key.toLowerCase()
       const live = currentState.current
-      if (document.activeElement !== sceneRef.current || selected !== 'rover' || live.paused || live.roverMode === 'returning' || live.roverMode === 'charging' || !allowed.includes(k)) return
+      if (document.activeElement !== sceneRef.current || selected !== 'rover' || live.paused || live.roverMode === 'returning' || live.roverMode === 'charging') return
+      const jointKeys = { q: ['yaw', -4], e: ['yaw', 4], r: ['shoulder', 4], f: ['shoulder', -4], t: ['elbow', 4], g: ['elbow', -4] } as const
+      if (k in jointKeys) {
+        event.preventDefault()
+        const [joint, change] = jointKeys[k as keyof typeof jointKeys]
+        dispatch({ type: 'rover-arm', joint, value: live.roverArm[joint] + change })
+        return
+      }
+      const sampleKeys = { ' ': 'rover-collect', b: 'rover-stow', c: 'rover-gripper', x: 'rover-arm-reset' } as const
+      if (k in sampleKeys) {
+        event.preventDefault()
+        if (!event.repeat) dispatch({ type: sampleKeys[k as keyof typeof sampleKeys] })
+        return
+      }
+      if (!allowed.includes(k)) return
       event.preventDefault()
       keys.add(k)
       controls()
@@ -272,10 +324,48 @@ export default function App() {
       document.removeEventListener('visibilitychange', stop)
       scene?.removeEventListener('blur', stop)
     }
-  }, [selected])
+  }, [selected, viewMode, activeMission])
+
+  const operationsPanel = (
+    <aside id="operations-panel" className="operations-panel" hidden={!panelOpen} aria-labelledby="operations-panel-heading">
+      <div className="operations-panel-header">
+        <h2 id="operations-panel-heading" ref={panelHeadingRef} tabIndex={-1}>Control de la base</h2>
+        <button onClick={closePanel} className="action-icon-btn" title="Cerrar panel y volver a explorar" aria-label="Cerrar panel y volver a explorar">
+          <X size={18} />
+        </button>
+      </div>
+      <nav className="operations-panel-tabs" aria-label="Secciones del panel de control">
+        <button className={panelTab === 'controls' ? 'active' : ''} aria-pressed={panelTab === 'controls'} onClick={() => setPanelTab('controls')}><PanelRight size={14} />Controles</button>
+        <button className={panelTab === 'network' ? 'active' : ''} aria-pressed={panelTab === 'network'} onClick={() => setPanelTab('network')}><Radio size={14} />Red</button>
+        <button className={panelTab === 'telemetry' ? 'active' : ''} aria-pressed={panelTab === 'telemetry'} onClick={() => setPanelTab('telemetry')}><Layers size={14} />Telemetría</button>
+      </nav>
+      <div className="operations-panel-body" key={panelTab}>
+        {panelTab === 'controls' ? <>
+          <ModulePanel key={selected} selected={selected} state={s} dispatch={dispatch} />
+          <section className="luna-card" aria-label="Orientación de LUNA">
+            <LunaAvatar />
+            <div className="luna-name">
+              <strong>LUNA <Sparkles size={13} /></strong>
+              <span>Compañera de exploración</span>
+            </div>
+            <div className="luna-copy">
+              <p>{lunaTip(s, selected)}</p>
+              <div className="operation-feedback" role="status" aria-live="polite">
+                {s.events.at(-1)?.text || 'Experimenta a tu propio ritmo con los controles de cada subsistema.'}
+              </div>
+            </div>
+          </section>
+        </> : panelTab === 'network' ? (
+          <NetworkPanel state={s} dispatch={dispatch} />
+        ) : (
+          <Telemetry state={s} history={telemetry.history} source={telemetry.source} />
+        )}
+      </div>
+    </aside>
+  )
 
   return (
-    <div className={`hub-shell ${fullscreen ? 'is-fullscreen' : ''}`}>
+    <div className={`hub-shell ${fullscreen ? 'is-fullscreen' : ''} ${viewMode === 'simulator' && !activeMission ? 'has-simulator' : ''} ${viewMode === 'pitch' && !activeMission ? 'has-pitch' : ''}`}>
       {/* ── BARRA SUPERIOR DE LA ESTACIÓN ESPACIAL ──────────────────────── */}
       <header className="hub-header">
         <div
@@ -593,26 +683,45 @@ export default function App() {
         />
       ) : (
         /* ── MODO 2: SIMULADOR EDUCATIVO LUNAR 3D PRINCIPAL ──────────────── */
-        <div className="simulator-container">
+        <div className={`simulator-container ${fullscreen ? 'is-fullscreen' : ''}`}>
           <div className="simulator-subnav">
+            <button className="back-button" onClick={() => setViewMode('hub')} title="Volver al Centro de Misiones" aria-label="Volver al Centro de Misiones">
+              <ChevronLeft size={16} />
+              <span>Centro de Misiones</span>
+            </button>
             <div className="simulator-title-badge">
               <Rocket size={15} />
-              <span>Estación Lunar Selene: Centro de Gestión y Control 3D</span>
+              <h1>Centro de Operaciones y Exploración Lunar</h1>
             </div>
             <div className="sim-quick-actions">
-              <button onClick={() => setDialog('guide')} className="sim-btn-sub" title="Guía y protocolo">
+              <button onClick={() => dispatch({ type: 'pause' })} className="sim-btn-sub" title={s.paused ? 'Continuar simulación' : 'Pausar simulación'} aria-label={s.paused ? 'Continuar simulación' : 'Pausar simulación'}>
+                {s.paused ? <Play size={15} /> : <Pause size={15} />}
+                <span>{s.paused ? 'Continuar' : 'Pausar'}</span>
+              </button>
+              <button
+                onClick={() => panelOpen ? closePanel() : setPanelOpen(true)}
+                className={`sim-btn-sub sim-panel-toggle ${panelOpen ? 'is-active' : ''}`}
+                title="Panel de control y telemetría"
+                aria-label="Panel de control y telemetría"
+                aria-expanded={panelOpen}
+                aria-controls="operations-panel"
+              >
+                <PanelRight size={15} /><span>Panel de control</span>
+              </button>
+              <button onClick={() => setDialog('guide')} className="sim-btn-sub" title="Guía y protocolo" aria-label="Guía y protocolo">
                 <CircleHelp size={15} /> <span>Protocolo</span>
               </button>
-              <button onClick={() => setDialog('notebook')} className="sim-btn-sub" title="Cuaderno de descubrimientos">
+              <button onClick={() => setDialog('notebook')} className="sim-btn-sub" title="Cuaderno de descubrimientos" aria-label="Cuaderno de descubrimientos">
                 <BookOpen size={15} /> <span>Bitácora</span>
               </button>
-              <button onClick={() => setDialog('reset')} className="sim-btn-sub" title="Reiniciar simulación">
+              <button onClick={() => setDialog('reset')} className="sim-btn-sub" title="Reiniciar simulación" aria-label="Reiniciar simulación">
                 <RotateCcw size={15} /> <span>Reiniciar</span>
               </button>
               <button
                 onClick={toggleFullscreen}
                 className={`sim-btn-sub sim-btn-fullscreen ${fullscreen ? 'is-active' : ''}`}
                 title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
               >
                 {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 <span>{fullscreen ? 'Restaurar' : 'Pantalla Completa'}</span>
@@ -620,102 +729,76 @@ export default function App() {
             </div>
           </div>
 
-          <main className="simulator-main">
-            {/* ENCABEZADO DE MISIÓN */}
-            <section className="intro">
-              <div>
-                <div className="eyebrow">
-                  <span />
-                  GESTIÓN Y CONTROL DE BASE LUNAR
-                </div>
-                <h1>
-                  Base Selene.<br className="mobile-break" /> <em>Centro de Operaciones y Exploración Lunar.</em>
-                </h1>
-                <p>
-                  Supervisa el balance de energía fotovoltaica, maniobra el rover de exploración sobre regolito,
-                  activa la limpieza electrodinámica de paneles y monitorea la telemetría en tiempo real con la Tierra.
-                </p>
-              </div>
-            </section>
-
-            {/* SELECTOR DE SUBSISTEMAS */}
-            <div className="module-tabs" aria-label="Seleccionar subsistema">
-              {(Object.keys(modules) as ModuleId[]).map(id => {
-                const m = modules[id]
-                const Icon = m.icon
-                return (
-                  <button
-                    key={id}
-                    className={`module-tab ${selected === id ? 'selected' : ''} ${m.color}`}
-                    onClick={() => select(id)}
-                    aria-pressed={selected === id}
-                  >
-                    <span className="tab-number">{m.number}</span>
-                    <span className="tab-icon">
-                      <Icon size={23} />
-                    </span>
-                    <span>
-                      <strong>{m.name}</strong>
-                      <small>{m.tag}</small>
-                    </span>
-                    {s.completed.includes(id) ? (
-                      <Check className="tab-check" size={19} aria-label="Objetivo completado" />
-                    ) : (
-                      <ChevronRight className="tab-arrow" size={18} />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* ESCENA 3D Y PANEL DE CONTROL CONTEXTUAL */}
+          <main className={`simulator-main ${panelOpen ? 'has-panel-open' : ''}`}>
+            {/* VISOR DE SUPERFICIE A TODO EL ANCHO */}
             <div className="station-grid">
-              <section className="scene-card" aria-labelledby="scene-heading">
-                <div className="scene-toolbar">
-                  <div>
-                    <span className="live-indicator" />
-                    <h2 id="scene-heading">Superficie de operaciones · Base Selene</h2>
-                    <span className="scene-tag">ESCENA LUNAR 3D REACT THREE FIBER</span>
-                  </div>
-                  <div className="scene-toolbar-actions">
-                    <button onClick={() => dispatch({ type: 'pause' })} className="scene-pause">
-                      {s.paused ? <Play size={14} /> : <Pause size={14} />}
-                      {s.paused ? 'Continuar' : 'Pausar'}
-                    </button>
-                    <button
-                      onClick={toggleFullscreen}
-                      className={`scene-fullscreen-btn ${fullscreen ? 'is-active' : ''}`}
-                      title={fullscreen ? 'Salir de pantalla completa' : 'Ver a pantalla completa'}
-                    >
-                      {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                      <span>{fullscreen ? 'Restaurar' : 'Pantalla completa'}</span>
-                    </button>
-                  </div>
-                </div>
-
+              <section className="scene-card" aria-label="Superficie de operaciones · Base Selene">
                 <div
                   className="scene-wrap"
                   ref={sceneRef}
                   tabIndex={0}
                   aria-label="Explorar la superficie lunar. Arrastra para orbitar y usa la rueda para zoom. Con el rover seleccionado, conduce con WASD o flechas."
+                  onPointerDown={event => {
+                    if (event.target instanceof HTMLCanvasElement) sceneRef.current?.focus({ preventScroll: true })
+                  }}
                 >
                   <Suspense fallback={<div className="scene-loading"><Moon size={36} /><p>Cargando estación lunar 3D…</p></div>}>
                     <Scene
                       state={s}
                       selected={selected}
-                      onSelect={select}
+                      onSelect={inspect}
                       cameraMode={cameraMode}
                       cameraCommand={cameraCommand}
                       quality={quality}
                     />
                   </Suspense>
                   <div className="scene-coordinate">
-                    <span>BASE SELENE</span>
-                    <small>Polo Sur Lunar · Relieve y Físicas Unificadas</small>
+                    <span><span className="live-indicator" /> BASE SELENE {s.paused && '· EN PAUSA'}</span>
+                    <small>
+                      {selected === 'rover'
+                        ? 'Polo Sur Lunar · Zona de exploración: 120 × 120 m'
+                        : selected === 'control'
+                        ? 'Base Selene · Estación de Control de Vuelo DSN (Centro Neurálgico)'
+                        : selected === 'iss'
+                        ? 'Órbita Terrestre Baja (LEO) · 420.5 km · Nodo de Misiones en Tierra'
+                        : 'Polo Sur Lunar · Superficie de operaciones'}
+                    </small>
+                    {selected === 'rover' && <>
+                      <small>Muestras guardadas: {s.collectedRocks.length}/{LUNAR_ROCKS.length}{s.heldRockId ? ' · Roca en la pinza' : ''}</small>
+                      {nearestRock.rock && <small>Próxima roca: {nearestRock.rock.name} · {nearestRock.distance.toFixed(1)} m</small>}
+                    </>}
+                    {selected === 'control' && <>
+                      <small>Estación DSN Activa: {s.activeGroundStation?.toUpperCase() || 'MADRID'} · 10 Canales Selene Nominales</small>
+                    </>}
+                    {selected === 'iss' && <>
+                      <small>Velocidad Orbital: 27.600 km/h · Centros en Tierra: Houston, ESOC, Tsukuba, KSC</small>
+                    </>}
                   </div>
                   <div className="scene-controls">
-                    <button title="Vista general" aria-label="Restablecer vista general" onClick={() => camera('reset')}>
+                    <button title="Vista general de la base" aria-label="Restablecer vista general" onClick={() => camera('reset')}>
                       <Home size={17} />
+                    </button>
+                    <button
+                      title="Enfocar Estación de Control de Vuelo DSN"
+                      aria-label="Enfocar Estación de Control de Vuelo DSN"
+                      className={cameraMode === 'control' ? 'is-active' : ''}
+                      onClick={() => {
+                        setSelected('control')
+                        setCameraMode('control')
+                      }}
+                    >
+                      <Activity size={17} />
+                    </button>
+                    <button
+                      title="Enfocar Estación Espacial Internacional (ISS) en Órbita"
+                      aria-label="Enfocar Estación Espacial Internacional en Órbita"
+                      className={cameraMode === 'iss' ? 'is-active' : ''}
+                      onClick={() => {
+                        setSelected('iss')
+                        setCameraMode('iss')
+                      }}
+                    >
+                      <Globe size={17} />
                     </button>
                     <span />
                     <button aria-label="Girar cámara a la izquierda" onClick={() => camera('left')}>
@@ -734,7 +817,7 @@ export default function App() {
                     <span />
                     <button
                       title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-                      aria-label="Pantalla completa"
+                      aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
                       onClick={toggleFullscreen}
                     >
                       {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
@@ -742,7 +825,13 @@ export default function App() {
                   </div>
                   <div className="scene-bottom">
                     <span>
-                      <Maximize2 size={13} /> Arrastra para rotar cámara · Rueda para zoom · WASD para conducir rover
+                      <Maximize2 size={13} /> {selected === 'rover'
+                        ? 'WASD: conducir · Q/E: girar brazo · R/F: hombro · T/G: codo · Espacio: recoger · B: guardar'
+                        : selected === 'control'
+                        ? 'Estación de Control DSN · Supervisa los 10 canales y sincroniza enlaces terrestres'
+                        : selected === 'iss'
+                        ? 'Estación Espacial Internacional en órbita LEO · Coordina misiones con Houston y ESOC'
+                        : 'Arrastra para rotar cámara · Rueda para zoom · Selecciona el rover para explorar y recoger rocas'}
                     </span>
                     <select
                       aria-label="Calidad gráfica"
@@ -753,6 +842,7 @@ export default function App() {
                       <option value="low">Calidad ligera</option>
                     </select>
                   </div>
+                  {operationsPanel}
                 </div>
 
                 <div className="equipment-strip">
@@ -764,10 +854,18 @@ export default function App() {
                         key={id}
                         className={selected === id ? 'selected' : ''}
                         aria-pressed={selected === id}
-                        onClick={() => select(id)}
+                        onClick={() => inspect(id)}
                       >
                         <Icon size={15} />
-                        {id === 'solar' ? 'Paneles y Limpieza EDS' : id === 'rover' ? 'Rover Lunar' : 'Antena DSN'}
+                        {id === 'solar'
+                          ? 'Paneles y EDS'
+                          : id === 'rover'
+                          ? 'Rover Lunar'
+                          : id === 'comms'
+                          ? 'Antena DSN'
+                          : id === 'control'
+                          ? 'Estación de Control (DSN)'
+                          : 'Estación Espacial (ISS)'}
                       </button>
                     )
                   })}
@@ -778,6 +876,24 @@ export default function App() {
                       onClick={() => setCameraMode(m => (m === 'follow' ? 'overview' : 'follow'))}
                     >
                       <Truck size={14} /> Seguir Rover
+                    </button>
+                  )}
+                  {selected === 'control' && (
+                    <button
+                      className={cameraMode === 'control' ? 'selected follow' : 'follow'}
+                      aria-pressed={cameraMode === 'control'}
+                      onClick={() => setCameraMode(m => (m === 'control' ? 'overview' : 'control'))}
+                    >
+                      <Activity size={14} /> Vista Estación Control
+                    </button>
+                  )}
+                  {selected === 'iss' && (
+                    <button
+                      className={cameraMode === 'iss' ? 'selected follow' : 'follow'}
+                      aria-pressed={cameraMode === 'iss'}
+                      onClick={() => setCameraMode(m => (m === 'iss' ? 'overview' : 'iss'))}
+                    >
+                      <Globe size={14} /> Vista ISS en Órbita
                     </button>
                   )}
                 </div>
@@ -792,29 +908,8 @@ export default function App() {
                 </div>
               </section>
 
-              <ModulePanel key={selected} selected={selected} state={s} dispatch={dispatch} />
             </div>
 
-            {/* ASISTENTE PEDAGÓGICO LUNA */}
-            <section className="luna-card" aria-label="Orientación de LUNA">
-              <LunaAvatar />
-              <div className="luna-name">
-                <strong>LUNA <Sparkles size={13} /></strong>
-                <span>Compañera pedagógica de exploración</span>
-              </div>
-              <div className="luna-copy">
-                <p>{lunaTip(s, selected)}</p>
-                <div className="operation-feedback" role="status" aria-live="polite">
-                  {s.events.at(-1)?.text || 'Experimenta a tu propio ritmo con los controles de cada subsistema.'}
-                </div>
-              </div>
-            </section>
-
-            {/* MATRIZ DE CONEXIONES Y RED */}
-            <NetworkPanel state={s} dispatch={dispatch} />
-
-            {/* TELEMETRÍA Y SUPERVISIÓN OPEN MCT */}
-            <Telemetry state={s} history={telemetry.history} source={telemetry.source} />
           </main>
 
           {/* MODALES: PROTOCOLO, BITÁCORA Y REINICIO */}
@@ -842,7 +937,7 @@ export default function App() {
                     <li>
                       <span>02</span>
                       <div>
-                        <strong>Rover Lunar de Exploración:</strong> Conduce con WASD o flechas por el relieve de cráteres, explora la superficie y regresa a la base para acoplarte e iniciar la recarga de batería.
+                        <strong>Rover Lunar de Exploración:</strong> Conduce con WASD o flechas por una zona de 120 × 120 metros. Las rocas recolectables están marcadas. Detente cerca y abre la pestaña Brazo: orienta la base, baja el hombro y ajusta el codo hasta alinear la pinza; pulsa Recoger roca y después Guardar muestra. También puedes manejar el brazo con Q/E, R/F y T/G, recoger con Espacio y guardar con B cuando el visor tenga el foco. Usa C para abrir o cerrar la pinza vacía y X para replegar el brazo. Regresa a la base para recargar.
                       </div>
                     </li>
                     <li>

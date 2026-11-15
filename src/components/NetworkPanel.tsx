@@ -1,13 +1,15 @@
 import type { Dispatch } from 'react';
-import { ArrowRight, BatteryCharging, Cable, Database, Globe, Link2, Radio, Sun, Truck } from 'lucide-react';
+import { Activity, ArrowRight, BatteryCharging, Cable, Database, Globe, Link2, Radio, Satellite, Sun, Truck } from 'lucide-react';
 import type { Action, ConnectionId, State } from '../simulation/types';
 import { metrics, roverDataConnected } from '../simulation/engine';
 
 const links: { id: ConnectionId; name: string; explanation: string }[] = [
   { id: 'solarBus', name: 'Paneles → batería', explanation: 'Lleva la energía solar a la estación.' },
+  { id: 'controlBus', name: 'Estación de Control DSN', explanation: 'Bus de datos de vuelo y telemetría de 10 canales.' },
   { id: 'roverDock', name: 'Base ↔ rover', explanation: 'Cable de recarga y datos en la plataforma.' },
   { id: 'antennaBus', name: 'Batería → antena', explanation: 'Alimenta el equipo de comunicaciones.' },
   { id: 'roverRadio', name: 'Rover → estación', explanation: 'Comparte observaciones por radio con la antena encendida.' },
+  { id: 'issLink', name: 'Enlace Orbital ISS', explanation: 'Conexión de telemetría inter-estaciones en banda Ka.' },
 ];
 
 export default function NetworkPanel({ state: s, dispatch }: { state: State; dispatch: Dispatch<Action> }) {
@@ -24,29 +26,41 @@ export default function NetworkPanel({ state: s, dispatch }: { state: State; dis
       </div>
       <p className="network-intro">Prueba a desconectar un enlace. ¿Qué equipos siguen funcionando?</p>
       
-      <div className="network-diagram" aria-label="Recorrido de la energía y la información">
+      <div className="network-diagram" aria-label="Recorrido de la energía y la información" style={{ flexWrap: 'wrap', gap: '8px' }}>
         <div className={`network-device ${s.connections.solarBus && s.solarOn ? 'online' : ''}`}>
-          <Sun size={25} />
+          <Sun size={24} />
           <strong>Paneles solares</strong>
           <span>{m.production.toFixed(0)} W hacia la base</span>
         </div>
-        <ArrowRight className={s.connections.solarBus ? 'network-arrow active' : 'network-arrow'} size={23} />
+        <ArrowRight className={s.connections.solarBus ? 'network-arrow active' : 'network-arrow'} size={20} />
         <div className={`network-device ${m.powered ? 'online' : ''}`}>
-          <BatteryCharging size={25} />
+          <BatteryCharging size={24} />
           <strong>Batería y base</strong>
           <span>{s.battery.toFixed(0)} % de reserva</span>
         </div>
-        <ArrowRight className={m.powered && s.connections.antennaBus ? 'network-arrow active' : 'network-arrow'} size={23} />
-        <div className={`network-device ${m.signal >= 20 ? 'online' : ''}`}>
-          <Radio size={25} />
-          <strong>Antena</strong>
-          <span>{m.signal.toFixed(0)} % de señal</span>
+        <ArrowRight className={m.powered && (s.connections.controlBus ?? true) ? 'network-arrow active' : 'network-arrow'} size={20} />
+        <div className={`network-device ${m.powered && (s.connections.controlBus ?? true) ? 'online' : ''}`}>
+          <Activity size={24} />
+          <strong>Estación Control</strong>
+          <span>10 canales DSN</span>
         </div>
-        <ArrowRight className={m.signal >= 65 ? 'network-arrow active data' : 'network-arrow'} size={23} />
+        <ArrowRight className={m.powered && s.connections.antennaBus ? 'network-arrow active' : 'network-arrow'} size={20} />
+        <div className={`network-device ${m.signal >= 20 ? 'online' : ''}`}>
+          <Radio size={24} />
+          <strong>Antena DSN</strong>
+          <span>{m.signal.toFixed(0)} % señal</span>
+        </div>
+        <ArrowRight className={s.issTelemetryActive && (s.connections.issLink ?? true) ? 'network-arrow active data' : 'network-arrow'} size={20} />
+        <div className={`network-device ${s.issTelemetryActive && (s.connections.issLink ?? true) ? 'online' : ''}`}>
+          <Globe size={24} />
+          <strong>Nodo Orbital ISS</strong>
+          <span>420 km LEO</span>
+        </div>
+        <ArrowRight className={s.lastTransmission ? 'network-arrow active data' : 'network-arrow'} size={20} />
         <div className={`network-device ${s.lastTransmission ? 'online' : ''}`}>
-          <Globe size={25} />
-          <strong>Centro de control</strong>
-          <span>{s.packets} informes recibidos</span>
+          <Satellite size={24} />
+          <strong>Centros en Tierra</strong>
+          <span>{s.packets} informes DSN</span>
         </div>
       </div>
 

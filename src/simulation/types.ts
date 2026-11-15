@@ -1,5 +1,12 @@
-export type ModuleId = 'solar' | 'rover' | 'comms';
-export type ConnectionId = 'solarBus' | 'roverDock' | 'antennaBus' | 'roverRadio';
+export type ModuleId = 'solar' | 'rover' | 'comms' | 'control' | 'iss';
+export type ConnectionId = 'solarBus' | 'roverDock' | 'antennaBus' | 'roverRadio' | 'controlBus' | 'issLink';
+
+export interface RoverArm {
+  yaw: number;
+  shoulder: number;
+  elbow: number;
+  gripperOpen: boolean;
+}
 
 export interface Transmission {
   time: number;
@@ -36,6 +43,9 @@ export interface State {
   roverMode: 'parked' | 'driving' | 'charging' | 'returning';
   roverDrive: { forward: number; turn: number };
   roverDistance: number;
+  roverArm: RoverArm;
+  heldRockId: string | null;
+  collectedRocks: string[];
   antennaOn: boolean;
   antennaAngle: number;
   packets: number;
@@ -45,6 +55,8 @@ export interface State {
   lastTransmission: Transmission | null;
   lastRoverTelemetry: { time: number; battery: number; distance: number; position: [number, number] };
   completed: ModuleId[];
+  activeGroundStation?: 'madrid' | 'goldstone' | 'canberra';
+  issTelemetryActive?: boolean;
   events: { id: number; time: number; text: string }[];
   history: Sample[];
 }
@@ -61,8 +73,17 @@ export type Action =
   | { type: 'rover-stop' }
   | { type: 'rover-return' }
   | { type: 'rover-charge' }
+  | { type: 'rover-arm'; joint: 'yaw' | 'shoulder' | 'elbow'; value: number }
+  | { type: 'rover-gripper' }
+  | { type: 'rover-collect' }
+  | { type: 'rover-stow' }
+  | { type: 'rover-arm-reset' }
   | { type: 'antenna-toggle' }
   | { type: 'antenna-angle'; value: number }
   | { type: 'transmit' }
+  | { type: 'dsn-station'; station: 'madrid' | 'goldstone' | 'canberra' }
+  | { type: 'dsn-sync' }
+  | { type: 'iss-toggle-link' }
+  | { type: 'iss-coordinate'; center: string }
   | { type: 'connection-toggle'; id: ConnectionId }
   | { type: 'reset' };

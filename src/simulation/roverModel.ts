@@ -3,6 +3,7 @@
  * Derivado de los modelos de movimiento de final-project-Lunar-E.
  * Sin dependencias externas: implementación 100% autocontenida en TypeScript.
  */
+import { ROVER_BOUNDS } from './roverExploration';
 
 const finite = (value: number, fallback: number): number =>
   Number.isFinite(value) ? value : fallback;
@@ -50,7 +51,7 @@ export function resolveRoverCommand(
 
 /**
  * Avanza la posición [x, z] y orientación del rover sobre la superficie lunar.
- * Restringe los límites de exploración a la cuadrícula de la base.
+ * Restringe los límites de exploración al terreno lunar extendido.
  */
 export function advanceRover(
   input: AdvanceRoverInput,
@@ -70,7 +71,7 @@ export function advanceRover(
   const rawX = startX + Math.sin(heading) * command.distance;
   const rawZ = startZ + Math.cos(heading) * command.distance;
 
-  const bounds = { minX: -12, maxX: 12, minZ: 3, maxZ: 13, ...options.bounds };
+  const bounds = { ...ROVER_BOUNDS, ...options.bounds };
   const position: [number, number] = [
     clamp(rawX, bounds.minX, bounds.maxX),
     clamp(rawZ, bounds.minZ, bounds.maxZ),

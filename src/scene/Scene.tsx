@@ -7,12 +7,14 @@ import { CameraRig } from './CameraRig';
 import type { CameraCommand } from './CameraRig';
 import { Environment } from './Environment';
 import { Equipment } from './Equipment';
+import { InternationalSpaceStation } from './InternationalSpaceStation';
+import { LunarSamples } from './LunarSamples';
 
 export interface SceneProps {
   state: State;
   selected: ModuleId;
   onSelect: (id: ModuleId) => void;
-  cameraMode: 'overview' | 'follow';
+  cameraMode: 'overview' | 'follow' | 'control' | 'iss';
   cameraCommand: CameraCommand;
   quality: 'standard' | 'low';
 }
@@ -64,21 +66,23 @@ export default function Scene(props: SceneProps) {
   const handleContextLost = useCallback(() => setContextLost(true), []);
   const low = props.quality === 'low';
   const retry = () => { setSupported(canRender3D()); setContextLost(false); setAttempt(value => value + 1); };
-  const fallback = <div style={{ minHeight: 440, height: '100%', display: 'grid', placeContent: 'center', gap: 14, padding: 32, textAlign: 'center', color: '#e3eaf5', background: '#121b2b' }}>
+  const fallback = <div style={{ minHeight: 0, height: '100%', overflowY: 'auto', display: 'grid', placeContent: 'center', gap: 14, padding: 24, textAlign: 'center', color: '#e3eaf5', background: '#121b2b' }}>
     <div style={{ fontSize: 36 }} aria-hidden="true">☾</div>
     <strong>El motor gráfico necesita un breve reinicio</strong>
     <p style={{ maxWidth: 330, margin: 0, lineHeight: 1.6 }}>Puedes seguir explorando los controles y aprendiendo con LUNA. Prueba a abrir de nuevo la estación.</p>
     <button type="button" onClick={retry} style={{ justifySelf: 'center', minHeight: 44, padding: '10px 20px', borderRadius: 12, border: 0, background: '#9de6cb', color: '#172c2b', font: 'inherit', cursor: 'pointer' }}>Reconectar visor espacial</button>
   </div>;
-  return <div role="region" aria-label="Entorno orbital de la estación lunar. Selecciona los paneles, el rover o la antena. Arrastra para girar la cámara y usa la rueda para acercarte." style={{ width: '100%', height: '100%', minHeight: 440, background: '#0c1221', overflow: 'hidden' }}>
+  return <div role="region" aria-label="Entorno orbital de la estación lunar. Selecciona los paneles, el rover o la antena. Arrastra para girar la cámara y usa la rueda para acercarte." style={{ width: '100%', height: '100%', minHeight: 0, background: '#0c1221', overflow: 'hidden' }}>
     {(!supported || contextLost) ? fallback : <SceneBoundary key={attempt} fallback={fallback}>
-      <Canvas shadows={!low} dpr={low ? 1 : [1, 1.6]} camera={{ position: [21, 18, 26], fov: 43, near: 0.1, far: 240 }}
+      <Canvas shadows={!low} dpr={low ? 1 : [1, 1.6]} camera={{ position: [21, 18, 26], fov: 43, near: 0.1, far: 360 }}
         gl={{ antialias: !low, alpha: false, powerPreference: low ? 'low-power' : 'high-performance' }}
         onCreated={({ gl }) => { gl.setClearColor('#0b1120'); gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1.08; }} fallback={fallback}>
         <ContextGuard onLost={handleContextLost} />
         <Lighting sunlight={props.state.sunlight} low={low} />
         <Environment low={low} />
         <Equipment state={props.state} selected={props.selected} onSelect={props.onSelect} />
+        <InternationalSpaceStation selected={props.selected} onSelect={props.onSelect} state={props.state} />
+        <LunarSamples state={props.state} active={props.selected === 'rover'} onInspect={() => props.onSelect('rover')} />
         <CameraRig state={props.state} mode={props.cameraMode} command={props.cameraCommand} />
       </Canvas>
     </SceneBoundary>}

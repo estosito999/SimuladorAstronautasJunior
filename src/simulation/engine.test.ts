@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState, ENERGY_TIME_SCALE, metrics, reduce, ROVER_CAPACITY_WH, STATION_CAPACITY_WH, step } from './engine';
 import type { State } from './types';
+import { ROVER_BOUNDS } from './roverExploration';
 
 const sunny = (): State => ({ ...createInitialState(), sunlight: 100, panelAngle: 45, dust: 0, battery: 50 });
 
@@ -62,14 +63,16 @@ describe('rover conectado a la estación', () => {
   });
 
   it('respeta la zona y reserva energía para el regreso automático', () => {
-    let s = step(reduce(createInitialState(), { type: 'rover-drive', forward: 1, turn: 0 }), 20);
-    expect(s.roverPosition[1]).toBeLessThanOrEqual(13);
+    let s = step(reduce(createInitialState(), { type: 'rover-drive', forward: 1, turn: 0 }), 30);
+    expect(s.roverPosition[1]).toBeGreaterThan(40);
+    s = step(s, 10);
+    expect(s.roverPosition[1]).toBe(ROVER_BOUNDS.maxZ);
     expect(s.roverMode).toBe('parked');
     s = { ...s, roverMode: 'driving', roverBattery: 11 };
     s = step(s, 1);
     expect(s.roverMode).toBe('returning');
     expect(s.roverDrive).toEqual({ forward: 0, turn: 0 });
-    expect(step(s, 10).roverPosition).toEqual([0, 5]);
+    expect(step(step(s, 30), 30).roverPosition).toEqual([0, 5]);
   });
 
   it('recupera un rover con batería vacía mediante reserva didáctica', () => {
@@ -97,10 +100,10 @@ describe('rover conectado a la estación', () => {
     expect(s.roverMode).toBe('returning');
     expect(s.roverPosition[1]).toBeLessThan(10);
     expect(s.events).toHaveLength(2);
-    s = { ...createInitialState(), roverPosition: [0, 13] };
+    s = { ...createInitialState(), roverPosition: [0, ROVER_BOUNDS.maxZ] };
     const battery = s.roverBattery;
     for (let i = 0; i < 12; i++) s = step(reduce(s, { type: 'rover-drive', forward: 1, turn: 0 }), 0.1);
-    expect(s.roverPosition).toEqual([0, 13]);
+    expect(s.roverPosition).toEqual([0, ROVER_BOUNDS.maxZ]);
     expect(s.roverBattery).toBe(battery);
     expect(s.events).toHaveLength(2);
   });

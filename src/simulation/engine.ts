@@ -2,6 +2,7 @@ import type { Action, ModuleId, Sample, State } from './types';
 import { calculateStationPower, integrateBatteryPct } from './solarModel';
 import { calculateDustEfficiency, advanceDust } from './dustModel';
 import { advanceRover } from './roverModel';
+import { ARM_LIMITS, DEFAULT_ROVER_ARM, getRockPickupStatus, LUNAR_ROCKS, ROVER_BOUNDS } from './roverExploration';
 
 /** Teaching model: one activity second represents one minute of energy use.
  * Movement and the on-screen clock remain in activity seconds. This is a
@@ -9,7 +10,7 @@ import { advanceRover } from './roverModel';
  */
 export const ENERGY_TIME_SCALE = 60;
 export const STATION_CAPACITY_WH = 100;
-export const ROVER_CAPACITY_WH = 30;
+export const ROVER_CAPACITY_WH = 60;
 export const DOCK: [number, number] = [0, 5];
 const STATION_LOAD_W = 40;
 const ANTENNA_LOAD_W = 16;
@@ -23,6 +24,7 @@ const clamp = (value: number, min: number, max: number, fallback = min) =>
 const atDock = (s: State) => Math.hypot(s.roverPosition[0], s.roverPosition[1] - 5) < 0.18;
 const energyPct = (watts: number, dt: number, capacity: number) =>
   (watts * dt * ENERGY_TIME_SCALE * 100) / (3600 * capacity);
+const foldedArm = (s: State) => ({ ...DEFAULT_ROVER_ARM, gripperOpen: !s.heldRockId });
 
 function solarPower(s: State) {
   return calculateStationPower({
@@ -83,10 +85,13 @@ export function createInitialState(): State {
     dust: 48, cleaning: false, battery: 62, roverBattery: 76,
     roverPosition: [...DOCK], roverHeading: 0, roverMode: 'parked',
     roverDrive: { forward: 0, turn: 0 }, roverDistance: 0,
+    roverArm: { ...DEFAULT_ROVER_ARM }, heldRockId: null, collectedRocks: [],
     antennaOn: false, antennaAngle: 15, packets: 0, completed: [],
-    connections: { solarBus: true, roverDock: true, antennaBus: true, roverRadio: true },
+    connections: { solarBus: true, roverDock: true, antennaBus: true, roverRadio: true, controlBus: true, issLink: true },
     pendingRoverSamples: 0, observations: 0, lastTransmission: null,
     lastRoverTelemetry: { time: 0, battery: 76, distance: 0, position: [...DOCK] },
+    activeGroundStation: 'madrid',
+    issTelemetryActive: true,
     events: [{ id: 1, time: 0, text: 'LUNA: ¡Bienvenido! Vamos a cuidar juntos nuestra estación lunar.' }],
     history: [],
   };
@@ -122,13 +127,13 @@ function advance(original: State, dt: number): State {
     const distanceHome = Math.hypot(s.roverPosition[0], s.roverPosition[1] - 5);
     const reserveNeeded = energyPct(DRIVE_LOAD_W, distanceHome / ROVER_SPEED, ROVER_CAPACITY_WH) + 6;
     if (s.roverBattery <= Math.max(12, reserveNeeded)) {
-      s = record({ ...s, roverMode: 'returning', roverDrive: { forward: 0, turn: 0 } },
+      s = record({ ...s, roverMode: 'returning', roverDrive: { forward: 0, turn: 0 }, roverArm: foldedArm(s) },
         'LUNA: Guardamos energía para el regreso. El rover vuelve a su base.');
     }
   }
 
   if (s.roverMode === 'driving') {
-    const motion = advanceRover({ position: s.roverPosition, heading: s.roverHeading, forward: s.roverDrive.forward, turn: s.roverDrive.turn }, dt, { speed: ROVER_SPEED, turnSpeed: 1.15, bounds: { minX: -12, maxX: 12, minZ: 3, maxZ: 13 } });
+    const motion = advanceRover({ position: s.roverPosition, heading: s.roverHeading, forward: s.roverDrive.forward, turn: s.roverDrive.turn }, dt, { speed: ROVER_SPEED, turnSpeed: 1.15, bounds: ROVER_BOUNDS });
     const { position, heading, distance: moved } = motion;
     const watts = Math.abs(s.roverDrive.forward) * DRIVE_LOAD_W + Math.abs(s.roverDrive.turn) * 6;
     s = { ...s, roverPosition: position, roverHeading: heading,
@@ -136,7 +141,7 @@ function advance(original: State, dt: number): State {
       roverBattery: clamp(s.roverBattery - energyPct(watts, dt, ROVER_CAPACITY_WH), 0, 100) };
     if (motion.blocked) {
       s = recordOnce({ ...s, roverMode: 'parked', roverDrive: { forward: 0, turn: 0 } },
-        'LUNA: Este es el borde de nuestra zona de práctica. Puedes girar o volver a la base.');
+        'LUNA: Llegamos al límite de exploración. Puedes girar o volver a la base.');
     }
   } else if (s.roverMode === 'returning') {
     const dx = DOCK[0] - s.roverPosition[0];
@@ -208,6 +213,13 @@ export function reduce(s: State, action: Action): State {
     roverMode: s.roverMode === 'driving' ? 'parked' : s.roverMode, roverDrive: { forward: 0, turn: 0 } };
   if (s.paused) return s;
 
+  const armAction = action.type === 'rover-arm' || action.type === 'rover-gripper' || action.type === 'rover-collect'
+    || action.type === 'rover-stow' || action.type === 'rover-arm-reset';
+  if (armAction && s.roverMode !== 'parked') return recordOnce(s, 'LUNA: Detén el rover para utilizar el brazo.');
+  if (armAction && s.roverBattery <= (action.type === 'rover-stow' ? 0.3 : 12)) {
+    return recordOnce(s, 'LUNA: Recarga el rover antes de utilizar el brazo.');
+  }
+
   switch (action.type) {
     case 'solar-toggle': return record({ ...s, solarOn: !s.solarOn }, s.solarOn
       ? 'LUNA: Paneles desconectados. Ahora usamos la batería de la estación.'
@@ -228,19 +240,19 @@ export function reduce(s: State, action: Action): State {
       if (forward === 0 && turn === 0) return { ...s, roverDrive: { forward, turn }, roverMode: s.roverMode === 'driving' ? 'parked' : s.roverMode };
       if (s.roverMode === 'returning') return s;
       if (s.roverBattery <= 12) return recordOnce({ ...s,
-        roverMode: atDock(s) ? 'parked' : 'returning', roverDrive: { forward: 0, turn: 0 } },
+        roverMode: atDock(s) ? 'parked' : 'returning', roverDrive: { forward: 0, turn: 0 }, roverArm: foldedArm(s) },
         'LUNA: Conservemos la reserva del rover. Regresa a la base y recarga.');
       const dx = Math.sin(s.roverHeading) * forward;
       const dz = Math.cos(s.roverHeading) * forward;
-      const outward = (s.roverPosition[0] >= 12 && dx > 0.0001)
-        || (s.roverPosition[0] <= -12 && dx < -0.0001)
-        || (s.roverPosition[1] >= 13 && dz > 0.0001)
-        || (s.roverPosition[1] <= 3 && dz < -0.0001);
+      const outward = (s.roverPosition[0] >= ROVER_BOUNDS.maxX && dx > 0.0001)
+        || (s.roverPosition[0] <= ROVER_BOUNDS.minX && dx < -0.0001)
+        || (s.roverPosition[1] >= ROVER_BOUNDS.maxZ && dz > 0.0001)
+        || (s.roverPosition[1] <= ROVER_BOUNDS.minZ && dz < -0.0001);
       if (outward && turn === 0) return recordOnce({ ...s, roverMode: 'parked', roverDrive: { forward: 0, turn: 0 } },
-        'LUNA: Este es el borde de nuestra zona de práctica. Puedes girar o volver a la base.');
-      return { ...s, roverDrive: { forward, turn }, roverMode: 'driving' };
+        'LUNA: Llegamos al límite de exploración. Puedes girar o volver a la base.');
+      return { ...s, roverDrive: { forward, turn }, roverMode: 'driving', roverArm: foldedArm(s) };
     }
-    case 'rover-return': return record({ ...s, roverMode: 'returning', roverDrive: { forward: 0, turn: 0 } },
+    case 'rover-return': return record({ ...s, roverMode: 'returning', roverDrive: { forward: 0, turn: 0 }, roverArm: foldedArm(s) },
       s.roverBattery === 0 ? 'LUNA: La reserva de emergencia permite volver despacio a la base.' : 'LUNA: Regreso automático a la base. Observa el camino del rover.');
     case 'rover-charge': {
       if (s.roverMode === 'charging') return { ...s, roverMode: 'parked' };
@@ -249,10 +261,37 @@ export function reduce(s: State, action: Action): State {
       if (s.roverBattery >= 100) return record(s, 'LUNA: La batería del rover ya está llena.');
       if (!mayCharge(s) || !metrics({ ...s, roverMode: 'charging' }).powered) return record(s,
         'LUNA: Necesitamos energía disponible en la estación para recargar el rover.');
-      let next: State = { ...s, roverMode: 'charging', roverPosition: [...DOCK], roverDrive: { forward: 0, turn: 0 } };
+      let next: State = { ...s, roverMode: 'charging', roverPosition: [...DOCK], roverDrive: { forward: 0, turn: 0 }, roverArm: foldedArm(s) };
       if (s.roverDistance >= 5) next = complete(next, 'rover');
       return record(next, 'LUNA: La estación comparte su energía con el rover.');
     }
+    case 'rover-arm': {
+      const limits = ARM_LIMITS[action.joint];
+      const value = clamp(action.value, limits.min, limits.max, s.roverArm[action.joint]);
+      const difference = Math.abs(value - s.roverArm[action.joint]);
+      if (difference === 0) return s;
+      return { ...s, roverArm: { ...s.roverArm, [action.joint]: value },
+        roverBattery: Math.max(12, s.roverBattery - difference * 0.003) };
+    }
+    case 'rover-gripper': {
+      if (s.heldRockId) return recordOnce(s, 'LUNA: Guarda la muestra antes de abrir la pinza.');
+      return { ...s, roverArm: { ...s.roverArm, gripperOpen: !s.roverArm.gripperOpen }, roverBattery: Math.max(12, s.roverBattery - 0.05) };
+    }
+    case 'rover-collect': {
+      const status = getRockPickupStatus(s);
+      if (!status.canCollect || !status.rock) return recordOnce(s, `LUNA: ${status.message}`);
+      return record({ ...s, heldRockId: status.rock.id, roverArm: { ...s.roverArm, gripperOpen: false },
+        roverBattery: Math.max(12, s.roverBattery - 0.6) }, `LUNA: ¡La pinza sujetó ${status.rock.name.toLowerCase()}! Guarda la muestra en el depósito.`);
+    }
+    case 'rover-stow': {
+      if (!s.heldRockId) return recordOnce(s, 'LUNA: Primero recoge una roca con la pinza.');
+      const rock = LUNAR_ROCKS.find(candidate => candidate.id === s.heldRockId);
+      return record({ ...s, heldRockId: null,
+        collectedRocks: s.collectedRocks.includes(s.heldRockId) ? s.collectedRocks : [...s.collectedRocks, s.heldRockId],
+        roverArm: { ...DEFAULT_ROVER_ARM }, roverBattery: Math.max(0, s.roverBattery - 0.3) },
+      `LUNA: Muestra guardada: ${rock?.kind ?? 'roca lunar'}. Llevamos ${s.collectedRocks.length + (s.collectedRocks.includes(s.heldRockId) ? 0 : 1)} roca(s) en el depósito.`);
+    }
+    case 'rover-arm-reset': return { ...s, roverArm: foldedArm(s), roverBattery: Math.max(12, s.roverBattery - 0.1) };
     case 'antenna-toggle': return record({ ...s, antennaOn: !s.antennaOn },
       s.antennaOn ? 'LUNA: Antena apagada. La estación consume menos energía.' : 'LUNA: Antena encendida. Oriéntala para enviar nuestros datos.');
     case 'antenna-angle': return { ...s, antennaAngle: clamp(action.value, 0, 90, s.antennaAngle) };
@@ -266,8 +305,56 @@ export function reduce(s: State, action: Action): State {
       } }, 'comms');
       return record(next, 'LUNA: ¡Informe enviado a nuestro centro de control local! Incluye energía, batería y señal.');
     }
+    case 'dsn-station': {
+      const stationNames = {
+        madrid: 'Complejo DSN Madrid (Robledo de Chavela, España · DSS 63/65)',
+        goldstone: 'Complejo DSN Goldstone (Desierto de Mojave, EE.UU. · DSS 14/24)',
+        canberra: 'Complejo DSN Canberra (Tidbinbilla, Australia · DSS 43/34)'
+      };
+      return record(
+        { ...s, activeGroundStation: action.station },
+        `LUNA: Enlace DSN conmutado a ${stationNames[action.station]}. Sincronizando telemetría.`
+      );
+    }
+    case 'dsn-sync': {
+      const m = metrics(s);
+      const next = complete({
+        ...s,
+        packets: s.packets + 5,
+        lastTransmission: {
+          time: s.elapsed,
+          production: m.production,
+          demand: m.demand,
+          stationBattery: s.battery,
+          roverBattery: s.lastRoverTelemetry.battery,
+          roverPosition: [...s.lastRoverTelemetry.position],
+          dust: s.dust,
+          signal: Math.max(m.signal, 88),
+          observations: s.observations,
+        }
+      }, 'control');
+      return record(next, `LUNA: ¡Telemetría de vuelo transmitida con éxito al Complejo DSN ${s.activeGroundStation?.toUpperCase() || 'MADRID'} y Centro de Control!`);
+    }
+    case 'iss-toggle-link': {
+      const active = !(s.issTelemetryActive ?? true);
+      return record(
+        { ...s, issTelemetryActive: active },
+        `LUNA: Enlace inter-estaciones ISS ↔ Base Selene ${active ? 'conectado en banda Ka' : 'pausado por ventana orbital'}.`
+      );
+    }
+    case 'iss-coordinate': {
+      const next = complete(s, 'iss');
+      return record(next, `LUNA: Operación coordinada con ${action.center}: Houston MCC y ESOC han validado el plan de vuelo y telemetría orbital.`);
+    }
     case 'connection-toggle': {
-      const names = { solarBus: 'paneles y batería', roverDock: 'plataforma y rover', antennaBus: 'batería y antena', roverRadio: 'radio del rover y estación' };
+      const names = {
+        solarBus: 'paneles y batería',
+        roverDock: 'plataforma y rover',
+        antennaBus: 'batería y antena',
+        roverRadio: 'radio del rover y estación',
+        controlBus: 'estación de control y bus de datos',
+        issLink: 'enlace orbital ISS'
+      };
       const connected = !s.connections[action.id];
       const next = { ...s, connections: { ...s.connections, [action.id]: connected } };
       if (action.id === 'roverDock' && !connected && next.roverMode === 'charging') next.roverMode = 'parked';

@@ -1,24 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import {
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  Play,
-  Pause,
-  Rocket,
-  Compass,
-  Zap,
-  Radio,
-  Sparkles,
-  Cpu,
-  Award,
-  ArrowRight,
-  ExternalLink,
-  ShieldCheck,
-  Terminal,
-  Activity
+  ArrowRight, Atom, BookOpen, ChevronLeft, ChevronRight, Code2, Compass,
+  Download, Eye, GraduationCap, Lightbulb, Maximize2, Minimize2, Moon,
+  Orbit, Pause, Play, Radio, Rocket, RotateCcw, Sigma, Sparkles, Truck,
+  WandSparkles, Waves, Wrench, X, Zap,
 } from 'lucide-react'
+import { PITCH_SECTIONS, PITCH_SCRIPT } from '../education/pitchContent'
+import {
+  getPitchSlideAt, getPitchSlideStart, initialPlayback, PITCH_DURATION,
+  PITCH_DURATIONS, playbackReducer,
+} from '../education/pitchPlayback'
+import './pitch.css'
+
+const PitchSpace = lazy(() => import('./pitch/PitchSpace'))
 
 interface RepoMission {
   id: string
@@ -40,504 +34,208 @@ interface PitchDeckProps {
   onOpenStation: () => void
 }
 
-interface Slide {
-  id: string
-  number: string
-  category: string
-  title: string
-  subtitle: string
-  render: (props: PitchDeckProps & { onNext: () => void; onPrev: () => void; goToSlide: (idx: number) => void }) => ReactNode
+const clock = (seconds: number) => {
+  const time = Math.max(0, Math.ceil(seconds))
+  return `${Math.floor(time / 60).toString().padStart(2, '0')}:${(time % 60).toString().padStart(2, '0')}`
 }
 
-export default function PitchDeck({ missions, onLaunchMission, onOpenStation }: PitchDeckProps) {
-  const [currentSlide, setCurrentSlide] = useState(0)
+const DISCIPLINES = [
+  { name: 'Matemáticas', icon: Sigma, detail: 'Calcular una trayectoria para alcanzar un destino.' },
+  { name: 'Física', icon: Atom, detail: 'Comprender el movimiento, la luz y la energía.' },
+  { name: 'Ingeniería', icon: Wrench, detail: 'Construir los equipos que hacen posible una misión.' },
+  { name: 'Informática', icon: Code2, detail: 'Programar un rover y conectar los datos de la estación.' },
+  { name: 'Ciencia', icon: Lightbulb, detail: 'Observar, hacer preguntas y poner a prueba una explicación.' },
+] as const
+
+const VISUAL_LABELS = [
+  ['La mirada', 'Un cielo de posibilidades', 'Mueve el cursor y explora las estrellas'],
+  ['El impulso', 'Nuestra curiosidad nos mueve', 'Una historia de preguntas y descubrimientos'],
+  ['El destino', 'La Luna dejó de ser imposible', 'El conocimiento hizo posible llegar'],
+  ['La conexión', 'Muchas ciencias. Una misión.', 'Selecciona una disciplina para descubrir su papel'],
+  ['El comienzo', 'La curiosidad no espera', 'Las primeras preguntas también importan'],
+  ['La experiencia', 'Una base lunar para aprender', 'Explorar y comprender con nuestras decisiones'],
+  ['El propósito', 'El próximo explorador', 'Su viaje puede comenzar aquí'],
+] as const
+
+export default function PitchDeck({ onOpenStation }: PitchDeckProps) {
+  const [playback, dispatch] = useReducer(playbackReducer, initialPlayback)
   const [fullscreen, setFullscreen] = useState(false)
-  const [autoplay, setAutoplay] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const [transition, setTransition] = useState<{ id: number; direction: 1 | -1 }>({ id: 0, direction: 1 })
+  const [wonder, setWonder] = useState(0)
+  const [route, setRoute] = useState(0)
+  const [discipline, setDiscipline] = useState(0)
+  const [question, setQuestion] = useState(false)
+  const [project, setProject] = useState(0)
+  const rootRef = useRef<HTMLElement>(null)
+  const notesHeadingRef = useRef<HTMLHeadingElement>(null)
+  const currentSlide = getPitchSlideAt(playback.elapsed)
+  const previousSlide = useRef(currentSlide)
+  const slideRef = useRef(currentSlide)
+  slideRef.current = currentSlide
+  const section = PITCH_SECTIONS[currentSlide]
+  const start = getPitchSlideStart(currentSlide)
+  const duration = PITCH_DURATIONS[currentSlide]
+  const slideProgress = Math.min(1, Math.max(0, (playback.elapsed - start) / duration))
+  const finished = playback.elapsed >= PITCH_DURATION
 
-  const SLIDES: Slide[] = [
-    // ── SLIDE 1: PORTADA ───────────────────────────────────────────
-    {
-      id: 'cover',
-      number: '01',
-      category: 'VISIÓN & INTRODUCCIÓN',
-      title: 'SELENE: Academia de Misión para Astronautas Junior',
-      subtitle: 'Ecosistema interactivo de simulación y gestión aeroespacial para la nueva generación',
-      render: ({ onNext, goToSlide }) => (
-        <div className="pitch-slide cover-slide">
-          <div className="pitch-cover-badge">
-            <Sparkles size={14} />
-            <span>NASA SPACE APPS CHALLENGE · PROPUESTA TECNOLÓGICA & EDUCATIVA</span>
-          </div>
-
-          <h1 className="pitch-hero-title">
-            Inspirando a los exploradores<br />
-            <span className="gradient-text">del mañana, hoy.</span>
-          </h1>
-
-          <p className="pitch-hero-description">
-            SELENE une <strong>5 simuladores de alta fidelidad</strong> en una sola plataforma integrada:
-            conducción de rovers, gestión y supervivencia en Marte y la Luna, mitigación de polvo electrodinámico,
-            telemetría operativa estilo NASA y gestión de soporte vital en tiempo real.
-          </p>
-
-          <div className="pitch-metric-pills">
-            <div className="metric-pill">
-              <strong>5</strong>
-              <span>Misiones Conectadas</span>
-            </div>
-            <div className="metric-pill">
-              <strong>100%</strong>
-              <span>Ejecución Local & Offline</span>
-            </div>
-            <div className="metric-pill">
-              <strong>10</strong>
-              <span>Canales de Telemetría Real</span>
-            </div>
-            <div className="metric-pill">
-              <strong>0.166 G</strong>
-              <span>Física Planetaria Realista</span>
-            </div>
-          </div>
-
-          <div className="pitch-cta-row">
-            <button className="pitch-primary-btn" onClick={onNext}>
-              <span>Comenzar Presentación</span>
-              <ArrowRight size={18} />
-            </button>
-            <button className="pitch-ghost-btn" onClick={() => goToSlide(3)}>
-              <span>Explorar las 5 Misiones</span>
-            </button>
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 2: EL PROBLEMA ───────────────────────────────────────
-    {
-      id: 'problem',
-      number: '02',
-      category: 'DIAGNÓSTICO & OPORTUNIDAD',
-      title: 'El Problema: La Brecha Educativa Aeroespacial',
-      subtitle: 'La ciencia espacial suele ser abstracta, fragmentada y pasiva en el aula',
-      render: () => (
-        <div className="pitch-slide">
-          <div className="pitch-grid-two">
-            <div className="pitch-card danger-card">
-              <div className="card-top">
-                <span className="card-icon red">⚠️</span>
-                <h3>La Realidad Actual</h3>
-              </div>
-              <ul className="pitch-list">
-                <li>
-                  <strong>Teoría desarticulada:</strong> Los conceptos de física gravitatoria, conversión fotovoltaica y telemetría se enseñan en pizarras sin aplicación práctica.
-                </li>
-                <li>
-                  <strong>Falta de integración sistémica:</strong> Los alumnos no ven cómo la batería afecta la antena o cómo el polvo en un panel paraliza un rover.
-                </li>
-                <li>
-                  <strong>Simuladores aislados o inaccesibles:</strong> Requieren suscripciones de pago, servidores en la nube o hardware especializado incompatible con aulas escolares.
-                </li>
-              </ul>
-            </div>
-
-            <div className="pitch-card success-card">
-              <div className="card-top">
-                <span className="card-icon green">✦</span>
-                <h3>Nuestra Propuesta de Valor</h3>
-              </div>
-              <ul className="pitch-list">
-                <li>
-                  <strong>Aprendizaje experiencial «Hands-On»:</strong> Aprender resolviendo situaciones críticas reales de una misión espacial.
-                </li>
-                <li>
-                  <strong>Ecosistema unificado:</strong> 5 proyectos y repositorios complementarios que intercambian datos y se retroalimentan.
-                </li>
-                <li>
-                  <strong>Accesibilidad universal:</strong> Funciona directamente en cualquier navegador web moderno, sin descargas pesadas ni requisitos de nube.
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 3: LA SOLUCIÓN & ARQUITECTURA ─────────────────────────
-    {
-      id: 'architecture',
-      number: '03',
-      category: 'INGENIERÍA & SOLUCIÓN',
-      title: 'Arquitectura del Ecosistema Integrado',
-      subtitle: 'Una sola consola de mando unificando 5 fuentes de tecnología y código',
-      render: () => (
-        <div className="pitch-slide">
-          <div className="pitch-arch-diagram">
-            <div className="arch-core-box">
-              <div className="core-header">
-                <Rocket size={20} className="core-icon" />
-                <div>
-                  <strong>HUB CENTRAL SELENE</strong>
-                  <small>Orquestación, Conexión de Repositorios y Telemetría Compartida</small>
-                </div>
-              </div>
-            </div>
-
-            <div className="arch-branches-grid">
-              <div className="arch-branch">
-                <Compass size={18} style={{ color: '#38bdf8' }} />
-                <strong>Misión Reconocimiento</strong>
-                <small>final-project-Lunar-E</small>
-                <p>Navegación cinemática del rover en regolito y cartografía de superficie.</p>
-              </div>
-
-              <div className="arch-branch">
-                <Rocket size={18} style={{ color: '#34d399' }} />
-                <strong>Gestión de Hábitat</strong>
-                <small>Asentamientos Planetarios</small>
-                <p>Supervivencia táctica, presupuestos, soporte vital y balance de masa en Luna/Marte.</p>
-              </div>
-
-              <div className="arch-branch">
-                <Zap size={18} style={{ color: '#fbbf24' }} />
-                <strong>Mantenimiento Energético</strong>
-                <small>Dust-Shield Digital Twin</small>
-                <p>Escudo electrodinámico (EDS) para mitigación de polvo por ondas viajeras.</p>
-              </div>
-
-              <div className="arch-branch">
-                <Radio size={18} style={{ color: '#a78bfa' }} />
-                <strong>Control de Vuelo DSN</strong>
-                <small>NASA Open MCT</small>
-                <p>Monitoreo y exportación de 10 canales en tiempo real mediante Deep Space Network.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 4: LAS 5 MISIONES INTERACTIVAS ───────────────────────
-    {
-      id: 'missions',
-      number: '04',
-      category: 'MISIÓN POR MISIÓN (DEMO EN VIVO)',
-      title: 'Las 5 Misiones Conectadas del Simulador',
-      subtitle: 'Haz clic en cualquier misión para inspeccionarla o probarla en tiempo real',
-      render: ({ missions, onLaunchMission, onOpenStation }) => (
-        <div className="pitch-slide">
-          <div className="pitch-missions-grid">
-            {/* 1. Misión Central Selene */}
-            <div className="pitch-mission-item highlight">
-              <div className="item-header">
-                <span className="item-badge" style={{ backgroundColor: '#f97316' }}>Misión Central</span>
-                <span className="item-status">● Integrado</span>
-              </div>
-              <h4>Base Lunar Selene: Centro de Gestión</h4>
-              <p>Simulador interactivo con asistente LUNA, gestión de energía, switches de red y conducción.</p>
-              <button className="pitch-action-btn" onClick={onOpenStation}>
-                <span>Abrir Base Selene</span>
-                <ArrowRight size={14} />
-              </button>
-            </div>
-
-            {/* 2. Reconocimiento Rover */}
-            {missions.map(m => (
-              <div className="pitch-mission-item" key={m.id}>
-                <div className="item-header">
-                  <span className="item-badge" style={{ backgroundColor: m.accentColor }}>{m.badge}</span>
-                  <span className="item-status">● Conectado</span>
-                </div>
-                <h4>{m.title}</h4>
-                <p>{m.subtitle}</p>
-                <button className="pitch-action-btn" onClick={() => onLaunchMission(m)}>
-                  <span>Lanzar Misión</span>
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 5: INNOVACIÓN TÉCNICA ────────────────────────────────
-    {
-      id: 'technology',
-      number: '05',
-      category: 'TECNOLOGÍA & PERFORMANCE',
-      title: 'Innovación Tecnológica e Integración Local',
-      subtitle: 'Ingeniería de software robusta, sin pantallas en blanco ni dependencias frágiles',
-      render: () => (
-        <div className="pitch-slide">
-          <div className="pitch-features-grid">
-            <div className="pitch-feature">
-              <Cpu size={24} style={{ color: '#38bdf8' }} />
-              <h4>Bridges de Datos Sincronizados</h4>
-              <p>Contratos tipados en TypeScript y módulos ES que comparten ecuaciones de potencia, atenuación y telemetría de forma determinista.</p>
-            </div>
-
-            <div className="pitch-feature">
-              <ShieldCheck size={24} style={{ color: '#34d399' }} />
-              <h4>Zero-Crash & Resiliencia</h4>
-              <p>Manejo de errores por aislamiento de subprocesos y sandboxes estáticos: si una misión recarga, el resto del ecosistema continúa intacto.</p>
-            </div>
-
-            <div className="pitch-feature">
-              <Activity size={24} style={{ color: '#fbbf24' }} />
-              <h4>Telemetría NASA Open MCT</h4>
-              <p>Integración con los estándares abiertos de la NASA para telemetría en tiempo real, trazado de gráficos y exportación en CSV para análisis.</p>
-            </div>
-
-            <div className="pitch-feature">
-              <Terminal size={24} style={{ color: '#a78bfa' }} />
-              <h4>54 Tests Automatizados</h4>
-              <p>Pruebas unitarias y de integración que verifican las fórmulas físicas, los límites de movimiento del rover y el soporte vital.</p>
-            </div>
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 6: METODOLOGÍA EDUCATIVA ─────────────────────────────
-    {
-      id: 'education',
-      number: '06',
-      category: 'PEDAGOGÍA STEM',
-      title: 'Impacto Educativo: Formando Jóvenes Astronautas',
-      subtitle: 'Diseñado bajo la metodología de indagación guiada y toma de decisiones',
-      render: () => (
-        <div className="pitch-slide">
-          <div className="pitch-pillars-row">
-            <div className="pitch-pillar">
-              <div className="pillar-num">01</div>
-              <h4>Aprender con LUNA</h4>
-              <p>Una asistente virtual no invasiva que explica causas y efectos científicos en lenguaje claro para edades de 7 a 14 años.</p>
-            </div>
-
-            <div className="pitch-pillar">
-              <div className="pillar-num">02</div>
-              <h4>Decisiones con Impacto</h4>
-              <p>Desconectar un cable de antena o no limpiar el polvo de las celdas solares tiene consecuencias inmediatas y medibles en la simulación.</p>
-            </div>
-
-            <div className="pitch-pillar">
-              <div className="pillar-num">03</div>
-              <h4>Vínculo con Ciencia Real</h4>
-              <p>Módulos directamente inspirados en misiones oficiales: rovers de Marte, Red DSN y tecnología electrodinámica de la NASA.</p>
-            </div>
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 7: HOJA DE RUTA Y FUTURO ─────────────────────────────
-    {
-      id: 'future',
-      number: '07',
-      category: 'VISIÓN A FUTURO & ESCALABILIDAD',
-      title: 'Hoja de Ruta: El Futuro de SELENE',
-      subtitle: 'De un simulador en navegador a una plataforma interplanetaria en aulas y museos',
-      render: () => (
-        <div className="pitch-slide">
-          <div className="pitch-roadmap">
-            <div className="roadmap-phase completed">
-              <div className="phase-badge">FASE 1 · LOGRADO</div>
-              <h4>Ecosistema 5 en 1</h4>
-              <ul>
-                <li>Fusión de los 5 proyectos en un solo hub local.</li>
-                <li>Nombres y física aeroespacial realista.</li>
-                <li>Telemetría unificada y cero pantallas en blanco.</li>
-              </ul>
-            </div>
-
-            <div className="roadmap-phase active">
-              <div className="phase-badge highlight">FASE 2 · EN CURSO</div>
-              <h4>Modo Aula Multijugador</h4>
-              <ul>
-                <li>Roles asignados en red local (Comandante, Científico, Ingeniero, Director de Vuelo).</li>
-                <li>Resolución colaborativa de emergencias en equipo.</li>
-                <li>Panel de evaluación docente con bitácora de progreso.</li>
-              </ul>
-            </div>
-
-            <div className="roadmap-phase">
-              <div className="phase-badge">FASE 3 · PRÓXIMA</div>
-              <h4>Telemetría IoT Real (Hardware)</h4>
-              <ul>
-                <li>Conexión con microcontroladores (ESP32/Arduino).</li>
-                <li>Rovers impresos en 3D que reportan telemetría real al simulador.</li>
-                <li>Celdas solares y sensores de luz físicos en el aula.</li>
-              </ul>
-            </div>
-
-            <div className="roadmap-phase">
-              <div className="phase-badge">FASE 4 · EXPANSIÓN</div>
-              <h4>Red de Planetarios & Colegios</h4>
-              <ul>
-                <li>Despliegue curricular para escuelas públicas y centros de ciencias.</li>
-                <li>Certificaciones de misiones y pasaporte de astronauta junior.</li>
-                <li>Compatibilidad WebXR para visores de realidad inmersiva.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )
-    },
-
-    // ── SLIDE 8: EQUIPO Y LLAMADO A LA ACCIÓN ──────────────────────
-    {
-      id: 'conclusion',
-      number: '08',
-      category: 'CONCLUSIÓN & LLAMADO',
-      title: 'El Próximo Paso en la Exploración Comienza Aquí',
-      subtitle: 'La curiosidad es el combustible que nos llevará de regreso a la Luna y hacia Marte',
-      render: ({ onOpenStation }) => (
-        <div className="pitch-slide conclusion-slide">
-          <Award size={48} className="conclusion-trophy" />
-          <h2>Listo para despegue.</h2>
-          <p>
-            SELENE demuestra que la tecnología web moderna puede transformar proyectos aislados en una experiencia unificada, pedagógica y profundamente inspiradora.
-          </p>
-
-          <div className="conclusion-buttons">
-            <button className="pitch-primary-btn" onClick={onOpenStation}>
-              <Rocket size={18} />
-              <span>Explorar Estación Selene</span>
-            </button>
-            <a
-              href="https://www.spaceappschallenge.org/"
-              target="_blank"
-              rel="noreferrer"
-              className="pitch-ghost-btn"
-            >
-              <span>NASA Space Apps Challenge</span>
-              <ExternalLink size={15} />
-            </a>
-          </div>
-
-          <div className="conclusion-footer-badge">
-            <Sparkles size={14} />
-            <span>Desarrollado para mentes curiosas · Proyecto Educativo de Misión Espacial</span>
-          </div>
-        </div>
-      )
-    }
-  ]
-
-  // Controles de teclado para avanzar/retroceder diapositivas
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-        e.preventDefault()
-        setCurrentSlide(prev => (prev < SLIDES.length - 1 ? prev + 1 : prev))
-      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-        e.preventDefault()
-        setCurrentSlide(prev => (prev > 0 ? prev - 1 : prev))
-      } else if (e.key === 'Home') {
-        setCurrentSlide(0)
-      } else if (e.key === 'End') {
-        setCurrentSlide(SLIDES.length - 1)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [SLIDES.length])
+    if (currentSlide === previousSlide.current) return
+    const direction = currentSlide > previousSlide.current ? 1 : -1
+    previousSlide.current = currentSlide
+    setTransition(value => ({ id: value.id + 1, direction }))
+  }, [currentSlide])
 
-  // Autoplay de diapositivas
   useEffect(() => {
-    if (!autoplay) return
+    if (!playback.playing) return
+    let previous = performance.now()
     const timer = window.setInterval(() => {
-      setCurrentSlide(prev => (prev < SLIDES.length - 1 ? prev + 1 : 0))
-    }, 8000)
+      const now = performance.now()
+      dispatch({ type: 'tick', seconds: (now - previous) / 1000 })
+      previous = now
+    }, 100)
     return () => window.clearInterval(timer)
-  }, [autoplay, SLIDES.length])
+  }, [playback.playing])
 
-  const slide = SLIDES[currentSlide]
-  const next = () => setCurrentSlide(prev => (prev < SLIDES.length - 1 ? prev + 1 : prev))
-  const prev = () => setCurrentSlide(prev => (prev > 0 ? prev - 1 : prev))
-  const goToSlide = (idx: number) => setCurrentSlide(idx)
+  useEffect(() => {
+    const visibility = () => { if (document.hidden) dispatch({ type: 'pause' }) }
+    const fullscreenChange = () => setFullscreen(document.fullscreenElement === rootRef.current)
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const motionChange = () => setReducedMotion(media.matches)
+    document.addEventListener('visibilitychange', visibility)
+    document.addEventListener('fullscreenchange', fullscreenChange)
+    media.addEventListener('change', motionChange)
+    return () => {
+      document.removeEventListener('visibilitychange', visibility)
+      document.removeEventListener('fullscreenchange', fullscreenChange)
+      media.removeEventListener('change', motionChange)
+    }
+  }, [])
 
-  return (
-    <section className={`pitch-container ${fullscreen ? 'is-fullscreen' : ''}`}>
-      {/* ── BARRA SUPERIOR DE LA PRESENTACIÓN ────────────────────────── */}
-      <header className="pitch-header">
-        <div className="pitch-header-info">
-          <span className="pitch-slide-num">{slide.number} / 08</span>
-          <span className="pitch-category">{slide.category}</span>
-          <h2 className="pitch-slide-title-preview">{slide.title}</h2>
-        </div>
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    else rootRef.current?.requestFullscreen().catch(() => {})
+  }
 
-        <div className="pitch-controls-right">
-          <button
-            className={`pitch-ctrl-btn ${autoplay ? 'active' : ''}`}
-            onClick={() => setAutoplay(!autoplay)}
-            title={autoplay ? 'Pausar reproducción automática' : 'Reproducción automática (8s)'}
-          >
-            {autoplay ? <Pause size={16} /> : <Play size={16} />}
-            <span>{autoplay ? 'Pausar' : 'Autoplay'}</span>
-          </button>
+  const goToSlide = (index: number) => {
+    if (index < 0 || index >= PITCH_SECTIONS.length) return
+    // Manual navigation is rehearsal; the timed run resumes only on request.
+    dispatch({ type: 'pause' })
+    dispatch({ type: 'seek', slide: index })
+  }
 
-          <button
-            className="pitch-ctrl-btn"
-            onClick={() => setFullscreen(!fullscreen)}
-            title={fullscreen ? 'Salir de pantalla completa' : 'Modo presentación pantalla completa'}
-          >
-            {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
-        </div>
-      </header>
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if ((event.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (event.key === 'Escape' && notesOpen) {
+        setNotesOpen(false)
+        rootRef.current?.querySelector<HTMLButtonElement>('[aria-controls="pitch-narration"]')?.focus()
+        return
+      }
+      if (event.key.toLowerCase() === 'n') { event.preventDefault(); setNotesOpen(open => !open); return }
+      if (notesOpen) return
+      if (event.key === 'ArrowRight' || event.key === 'PageDown') { event.preventDefault(); goToSlide(slideRef.current + 1) }
+      else if (event.key === 'ArrowLeft' || event.key === 'PageUp') { event.preventDefault(); goToSlide(slideRef.current - 1) }
+      else if (event.key === ' ' && !(event.target as HTMLElement | null)?.closest('button, a')) { event.preventDefault(); if (!event.repeat) dispatch({ type: 'toggle' }) }
+      else if (event.key === 'Home') { event.preventDefault(); dispatch({ type: 'restart' }) }
+      else if (event.key.toLowerCase() === 'f') { event.preventDefault(); toggleFullscreen() }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [notesOpen])
 
-      {/* ── LIENZO PRINCIPAL DE LA DIAPOSITIVA (ESTILO SLIDE 16:9) ───── */}
-      <div className="pitch-stage">
-        <div className="pitch-canvas">
-          <header className="slide-content-header">
-            <span className="slide-eyebrow">{slide.category}</span>
-            <h1 className="slide-main-title">{slide.title}</h1>
-            <p className="slide-subtitle">{slide.subtitle}</p>
-          </header>
+  useEffect(() => {
+    if (notesOpen) notesHeadingRef.current?.focus({ preventScroll: true })
+  }, [notesOpen])
 
-          <div className="slide-body">
-            {slide.render({ missions, onLaunchMission, onOpenStation, onNext: next, onPrev: prev, goToSlide })}
-          </div>
-        </div>
+  const downloadScript = () => {
+    const timedScript = PITCH_SECTIONS.map((part, index) => {
+      const from = getPitchSlideStart(index)
+      return `[${clock(from)} a ${clock(from + PITCH_DURATIONS[index])}] ${part.label}\n\n${part.narration.join('\n\n')}`
+    }).join('\n\n────────────────────────\n\n')
+    const blob = new Blob([`Simulador para Astronautas Junior\nGuion del pitch · 3 minutos · ${PITCH_SCRIPT.split(/\s+/).length} palabras\n\n${timedScript}`], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'Guion_Astronautas_Junior_3_minutos.txt'
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const [beforeEmphasis, afterEmphasis] = section.title.split(section.emphasis)
+  let interaction: ReactNode
+  if (currentSlide === 0) {
+    const feelings = [
+      { name: 'Belleza', text: 'Pequeños puntos de luz. Distancias inimaginables.' },
+      { name: 'Asombro', text: 'Aunque sabemos lo lejos que están, queremos alcanzarlos.' },
+      { name: 'Misterio', text: 'El deseo de descubrir qué se encuentra más allá.' },
+    ]
+    interaction = <>
+      <div className="cp-choice-row" aria-label="Explorar lo que nos inspira el universo">{feelings.map((feeling, index) => <button key={feeling.name} className={`cp-choice ${wonder === index ? 'is-selected' : ''}`} aria-pressed={wonder === index} onClick={() => setWonder(index)}><Sparkles size={15} />{feeling.name}</button>)}</div>
+      <blockquote className="cp-reveal">{feelings[wonder].text}</blockquote>
+    </>
+  } else if (currentSlide === 1) {
+    const routes = [
+      { name: 'Océanos', icon: Waves, text: 'La curiosidad nos llevó a cruzar océanos y descubrir nuevos continentes.' },
+      { name: 'Naturaleza', icon: Atom, text: 'Nos llevó a comprender las leyes de la naturaleza.' },
+      { name: 'Espacio', icon: Rocket, text: 'Y, finalmente, a abandonar por primera vez nuestro propio planeta.' },
+    ]
+    interaction = <><div className="cp-route" aria-label="El recorrido de la curiosidad">{routes.map((step, index) => <button key={step.name} className={`cp-choice ${route === index ? 'is-selected' : ''}`} aria-pressed={route === index} onClick={() => setRoute(index)}><step.icon size={20} /><span>{step.name}</span></button>)}</div><blockquote className="cp-reveal">{routes[route].text}</blockquote></>
+  } else if (currentSlide === 2) {
+    interaction = <><div className="cp-choice-row"><span className="cp-moon-mark"><Moon size={22} />La imaginación se convirtió en una misión</span></div><blockquote className="cp-reveal">Llegar hasta allí fue el resultado de generaciones que unieron sus conocimientos.</blockquote></>
+  } else if (currentSlide === 3) {
+    interaction = <><div className="cp-discipline-grid" aria-label="Ciencias que hacen posible una misión">{DISCIPLINES.map((field, index) => <button key={field.name} className={`cp-choice ${discipline === index ? 'is-selected' : ''}`} aria-pressed={discipline === index} onClick={() => setDiscipline(index)}><field.icon size={18} /><span>{field.name}</span></button>)}</div><p className="cp-discipline-detail"><strong>{DISCIPLINES[discipline].name}</strong> {DISCIPLINES[discipline].detail}</p></>
+  } else if (currentSlide === 4) {
+    interaction = <><div className="cp-question-toggle"><button className={`cp-choice ${!question ? 'is-selected' : ''}`} aria-pressed={!question} onClick={() => setQuestion(false)}><Eye size={17} />Observar la Luna</button><button className={`cp-choice ${question ? 'is-selected' : ''}`} aria-pressed={question} onClick={() => setQuestion(true)}><Compass size={17} />Experimentar con ella</button></div><blockquote className="cp-reveal">{question ? 'Comprenderla, explorarla y resolver los desafíos que implica trabajar en ella.' : '¿Por qué no acercar a los niños, desde sus primeros años, a ese universo que despierta su imaginación?'}</blockquote></>
+  } else if (currentSlide === 5) {
+    const experiences = [
+      { name: 'Explorar', icon: Truck, text: 'Conducir un rover y descubrir el relieve de la superficie lunar.' },
+      { name: 'Descubrir', icon: Sparkles, text: 'Manejar un brazo robótico y recoger muestras de rocas lunares.' },
+      { name: 'Comprender', icon: Zap, text: 'Experimentar con la energía que conecta los equipos de la base.' },
+    ]
+    interaction = <div className="cp-project-demo"><div className="cp-demo-controls">{experiences.map((experience, index) => <button key={experience.name} className={`cp-choice ${project === index ? 'is-selected' : ''}`} aria-pressed={project === index} onClick={() => setProject(index)}><experience.icon size={18} />{experience.name}</button>)}</div><p className="cp-demo-detail">{experiences[project].text}</p><span className="cp-hint"><Radio size={13} />Una plataforma educativa tridimensional</span></div>
+  } else {
+    interaction = <div className="cp-final-cta"><button className="cp-button cp-button--primary" onClick={() => { dispatch({ type: 'pause' }); onOpenStation() }}><Rocket size={18} />Comenzar a explorar<ArrowRight size={18} /></button>{finished && <p className="cp-finished" role="status">Presentación finalizada · 03:00</p>}</div>
+  }
+
+  return <section className="cinematic-pitch" data-scene={section.visual} data-reduced-motion={reducedMotion} ref={rootRef} aria-label="Pitch de Simulador para Astronautas Junior, duración de tres minutos">
+    <div className="cp-scene" aria-hidden="true"><Suspense fallback={<div className="cp-loading" />}><PitchSpace slide={currentSlide} transitionId={transition.id} direction={transition.direction} reducedMotion={reducedMotion} playing={playback.playing} interactive /></Suspense></div>
+    <div className="cp-vignette" />
+    <header className="cp-toolbar">
+      <div className="cp-heading"><Orbit size={23} /><div><span>Pitch del proyecto</span><small>Simulador para Astronautas Junior</small></div></div>
+      <div className="cp-clock" role="timer" aria-label={`Tiempo restante: ${clock(PITCH_DURATION - playback.elapsed)}`}><time>{clock(PITCH_DURATION - playback.elapsed)}</time><small>de 03:00</small></div>
+      <div className="cp-toolbar-actions">
+        <button className={`cp-button cp-button--primary ${playback.playing ? 'is-active' : ''}`} onClick={() => dispatch({ type: 'toggle' })} title={playback.playing ? 'Pausar presentación' : finished ? 'Repetir los tres minutos' : 'Reproducir presentación de tres minutos'} aria-label={playback.playing ? 'Pausar presentación' : finished ? 'Repetir los tres minutos' : playback.elapsed > 0 ? 'Continuar presentación' : 'Presentar en tres minutos'}>{playback.playing ? <Pause size={16} /> : <Play size={16} />}<span>{playback.playing ? 'Pausar' : finished ? 'Repetir 3 min' : playback.elapsed > 0 ? 'Continuar' : 'Presentar 3 min'}</span></button>
+        <button className="cp-button cp-icon-button" onClick={() => dispatch({ type: 'restart' })} title="Reiniciar ensayo" aria-label="Reiniciar ensayo"><RotateCcw size={17} /></button>
+        <button className={`cp-button ${notesOpen ? 'is-active' : ''}`} onClick={() => setNotesOpen(open => !open)} aria-expanded={notesOpen} aria-controls="pitch-narration" title="Ver guion del presentador" aria-label="Ver guion del presentador"><BookOpen size={17} /><span>Guion</span></button>
+        <button className={`cp-button cp-icon-button ${reducedMotion ? 'is-active' : ''}`} onClick={() => setReducedMotion(value => !value)} aria-pressed={reducedMotion} title={reducedMotion ? 'Activar animaciones de naves' : 'Reducir movimiento'} aria-label={reducedMotion ? 'Activar animaciones de naves' : 'Reducir movimiento'}><WandSparkles size={17} /></button>
+        <button className="cp-button cp-icon-button" onClick={toggleFullscreen} title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'} aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
       </div>
-
-      {/* ── BARRA INFERIOR DE NAVEGACIÓN Y MINIATURAS ───────────────── */}
-      <footer className="pitch-footer">
-        <button
-          className="pitch-nav-arrow"
-          disabled={currentSlide === 0}
-          onClick={prev}
-          title="Diapositiva anterior (Flecha Izquierda)"
-        >
-          <ChevronLeft size={20} />
-          <span>Anterior</span>
-        </button>
-
-        <div className="pitch-dots-tray">
-          {SLIDES.map((s, idx) => (
-            <button
-              key={s.id}
-              className={`pitch-dot-pill ${idx === currentSlide ? 'active' : ''}`}
-              onClick={() => goToSlide(idx)}
-              title={`${s.number}: ${s.title}`}
-            >
-              <span className="dot-index">{s.number}</span>
-              <span className="dot-title">{s.title.split(':')[0]}</span>
-            </button>
-          ))}
-        </div>
-
-        <button
-          className="pitch-nav-arrow next"
-          disabled={currentSlide === SLIDES.length - 1}
-          onClick={next}
-          title="Siguiente diapositiva (Flecha Derecha / Espacio)"
-        >
-          <span>Siguiente</span>
-          <ChevronRight size={20} />
-        </button>
-      </footer>
-    </section>
-  )
+    </header>
+    <progress className="cp-total-progress" max={PITCH_DURATION} value={playback.elapsed} aria-label="Progreso de la presentación de tres minutos" />
+    <main className="cp-stage">
+      <article className="cp-slide" data-slide={currentSlide} key={section.id}>
+        <div className="cp-eyebrow"><span>{String(currentSlide + 1).padStart(2, '0')} / 07</span>{section.eyebrow}</div>
+        <h1 className="cp-title">{beforeEmphasis}<span className="cp-emphasis">{section.emphasis}</span>{afterEmphasis}</h1>
+        <p className="cp-subtitle">{section.subtitle}</p>
+        <div className="cp-interaction">{interaction}</div>
+      </article>
+      <aside className="cp-visual-label" aria-label="Escena de la diapositiva"><small>{VISUAL_LABELS[currentSlide][0]}</small><strong>{VISUAL_LABELS[currentSlide][1]}</strong><span>{VISUAL_LABELS[currentSlide][2]}</span></aside>
+      <div className="cp-shortcuts"><span>{playback.playing ? 'Presentación en curso' : finished ? 'Fin del recorrido' : 'Modo ensayo'}</span><span>← → Cambiar escena · Espacio Reproducir · F Pantalla completa</span></div>
+    </main>
+    <footer className="cp-footer">
+      <button className="cp-nav" onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide === 0} aria-label="Diapositiva anterior"><ChevronLeft size={19} /><span>Anterior</span></button>
+      <nav className="cp-chapters" aria-label="Diapositivas del pitch">{PITCH_SECTIONS.map((part, index) => <button key={part.id} className={`cp-chapter ${currentSlide === index ? 'is-current' : ''} ${currentSlide > index ? 'is-complete' : ''}`} aria-current={currentSlide === index ? 'step' : undefined} onClick={() => goToSlide(index)} title={`${part.label}, ${clock(getPitchSlideStart(index))} a ${clock(getPitchSlideStart(index) + PITCH_DURATIONS[index])}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{part.label}</strong><span className="cp-chapter-line" style={{ width: `${index < currentSlide ? 100 : index === currentSlide ? slideProgress * 100 : 0}%` }} /></button>)}</nav>
+      <div className="cp-slide-time"><time>{clock(Math.max(0, duration - (playback.elapsed - start)))}</time><small>en esta escena</small></div>
+      <button className="cp-nav" onClick={() => goToSlide(currentSlide + 1)} disabled={currentSlide === PITCH_SECTIONS.length - 1} aria-label="Siguiente diapositiva"><span>Siguiente</span><ChevronRight size={19} /></button>
+    </footer>
+    {notesOpen && <aside id="pitch-narration" className="cp-notes" aria-labelledby="pitch-notes-heading">
+      <header className="cp-notes-header"><div><span>Guion del presentador</span><h2 id="pitch-notes-heading" ref={notesHeadingRef} tabIndex={-1}>{section.label}</h2></div><button className="cp-button cp-icon-button" onClick={() => { setNotesOpen(false); rootRef.current?.querySelector<HTMLButtonElement>('[aria-controls="pitch-narration"]')?.focus() }} aria-label="Cerrar guion"><X size={19} /></button></header>
+      <div className="cp-notes-meta"><GraduationCap size={16} /><span>{clock(start)} a {clock(start + duration)} · {duration} segundos</span></div>
+      <div className="cp-notes-body" key={section.id}>{section.narration.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</div>
+      <button className="cp-button cp-download" onClick={downloadScript}><Download size={16} />Descargar guion completo</button>
+    </aside>}
+  </section>
 }

@@ -1,4 +1,4 @@
-﻿# Arquitectura de la integración
+# Arquitectura de la integración
 
 ## Workspace y dependencias reales
 
@@ -7,8 +7,9 @@ La raíz contiene cinco workspaces npm: la aplicación React y un paquete `integ
 ```text
 package.json                         Coordinación npm del workspace
 SimuladorParaAstronautasJunior/
+  src/gameObjects/                   Objetos del videojuego modularizados (base, rover, orbital, environment, camera, unity)
   src/simulation/                    Estado, conexiones, reglas y pruebas
-  src/scene/                         Escenario y modelos conectados
+  src/scene/                         Lienzo Three.js / R3F y fachadas de compatibilidad
   src/components/                    Controles, red y telemetría
 final-project-Lunar-E/integration/   Movimiento, cámara y modelo del rover
 ZERO-G-Junior-Astronaut-Trainer/
@@ -71,8 +72,14 @@ La potencia se expresa en W. Las capacidades didácticas son **100 Wh** en la es
 
 El histórico toma una muestra por segundo de actividad y retiene hasta **90 muestras**; el registro conserva **12 operaciones** recientes. El proveedor Open MCT expone diez canales: producción, consumo, batería de estación, batería del rover, señal, polvo, distancia, observaciones, informes y balance. El CSV se genera con los datos disponibles.
 
-## Interfaz y ampliación
+## Interfaz, GameObjects y Enlace con Unity
 
-React Three Fiber representa la escena; OrbitControls gestiona la vista orbital y la cámara puede seguir al rover. La conducción se libera al perder foco o visibilidad. Si falla WebGL 2, los paneles siguen disponibles. LUNA presenta explicaciones programadas, sin IA remota ni persistencia.
+React Three Fiber representa la escena; los objetos del mundo 3D se encuentran modularizados en `src/gameObjects/`:
+- `base/`: Complejo lunar (`BaseComplex`), Estación de Control de Vuelo DSN (`FlightControlStation`), Módulo de Residencia (`Habitat`), Paneles Solares (`SolarPanels`), Antena DSN (`CommunicationsDish`), Muelle de Recarga (`ChargingDock`) y Red de Potencia (`PowerCables`).
+- `rover/`: Modelo cinemático de Lunar-E y componente interactivo `RoverVehicle`.
+- `orbital/`: Estación Espacial Internacional (`InternationalSpaceStation`) y cálculo orbital (`OrbitTrajectory`).
+- `environment/`: Terreno (`LunarTerrain`), Bóveda celeste y Tierra (`CelestialSky`), Muestras geológicas (`LunarSamples`) y Elevación (`terrainHeight`).
+- `camera/`: Control multicámara orbital y presets (`CameraRig`, `cameraModes`).
+- `unity/`: Enlace de mensajería bidireccional (`UnityBridge.ts`) y contratos JSON tipados (`unityContracts.ts`) para integración con Unity WebGL mediante `SendMessage` y eventos en ventana.
 
 Para ampliar un dispositivo, modifica su paquete de origen y el contrato tipado del motor; verifica tanto la demo original como la aplicación integrada. Registra procedencia, licencia y cambios antes de incorporar recursos. Los resultados concretos de verificación corresponden a [VERIFICACION.md](VERIFICACION.md).

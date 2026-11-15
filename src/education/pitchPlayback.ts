@@ -1,4 +1,5 @@
-export const PITCH_DURATIONS = [24, 27, 23, 19, 34, 32, 21] as const;
+// Narration, interaction and ship transitions share this single 180-second clock.
+export const PITCH_DURATIONS = [34, 25, 23, 25, 39, 21, 13] as const;
 export const PITCH_DURATION = 180;
 
 export interface PitchPlaybackState {

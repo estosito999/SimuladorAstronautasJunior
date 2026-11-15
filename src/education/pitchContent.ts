@@ -1,86 +1,109 @@
+﻿export type PitchVisual = 'stars' | 'voyage' | 'moon' | 'disciplines' | 'question' | 'station' | 'horizon';
+
 export interface PitchSection {
   id: string;
   label: string;
+  eyebrow: string;
   title: string;
+  emphasis: string;
   subtitle: string;
+  visual: PitchVisual;
   narration: string[];
 }
 
+/** The spoken script stays complete; the canvas shows only its central phrases. */
 export const PITCH_SECTIONS: PitchSection[] = [
   {
     id: 'universe',
     label: 'El universo',
+    eyebrow: 'El inicio de todo',
     title: 'Hay algo profundamente fascinante en el universo…',
-    subtitle: 'El deseo de descubrir qué hay más allá.',
+    emphasis: 'en el universo',
+    subtitle: 'Belleza, asombro y misterio.',
+    visual: 'stars',
     narration: [
-      'Hay algo profundamente fascinante en el universo…',
-      'Cuando levantamos la mirada hacia un cielo lleno de estrellas, sentimos belleza, asombro y misterio. Vemos luces a distancias inimaginables y, aun así, algo dentro de nosotros quiere acercarse. Queremos descubrir qué hay más allá.',
-      'Ese impulso es la curiosidad.',
+      'Hay algo profundamente fascinante en el universo...',
+      'Cuando levantamos la mirada hacia un cielo lleno de estrellas, experimentamos una sensación difícil de describir. Una mezcla de belleza, asombro y misterio.',
+      'Contemplamos pequeños puntos de luz separados de nosotros por distancias inimaginables. Y, sin embargo, aunque sabemos lo lejos que están, existe en nuestro interior ese deseo casi imposible de alcanzarlos, de tocarlos, de descubrir qué se encuentra más allá.',
     ],
   },
   {
     id: 'curiosity',
     label: 'La curiosidad',
-    title: 'La curiosidad nos llevó hasta la Luna.',
-    subtitle: 'Muchas disciplinas, un propósito compartido.',
+    eyebrow: 'El impulso de explorar',
+    title: 'La curiosidad nos impulsa a explorar',
+    emphasis: 'La curiosidad',
+    subtitle: 'Aquello que todavía desconocemos.',
+    visual: 'voyage',
     narration: [
-      'La misma curiosidad que nos llevó a cruzar océanos, comprender la naturaleza y superar los límites de nuestro planeta.',
-      'Hasta que un día, la humanidad llegó a la Luna.',
-      'Detrás de aquel paso estuvieron generaciones de científicos, matemáticos, ingenieros e informáticos. Personas que conectaron sus conocimientos para hacer posible lo que parecía inalcanzable.',
+      'Porque hay algo que ha acompañado al ser humano a lo largo de toda su historia: la curiosidad por explorar aquello que todavía desconoce.',
+      'Esa misma curiosidad que nos llevó a cruzar océanos, descubrir nuevos continentes, comprender las leyes de la naturaleza y, finalmente, abandonar por primera vez nuestro propio planeta.',
+    ],
+  },
+  {
+    id: 'moon',
+    label: 'La Luna',
+    eyebrow: 'Lo que parecía imposible',
+    title: 'El ser humano llegó a la Luna',
+    emphasis: 'llegó a la Luna',
+    subtitle: 'Un logro construido durante generaciones.',
+    visual: 'moon',
+    narration: [
+      'Y así, lo que durante miles de años parecía imposible, terminó convirtiéndose en uno de los mayores logros de nuestra civilización: el ser humano llegó a la Luna.',
+      'Pero llegar hasta allí no fue únicamente el triunfo de un astronauta o de una nave espacial.',
+    ],
+  },
+  {
+    id: 'disciplines',
+    label: 'Las ciencias',
+    eyebrow: 'Conocimientos que se encuentran',
+    title: 'Muchas disciplinas, un mismo propósito',
+    emphasis: 'un mismo propósito',
+    subtitle: 'La exploración espacial une nuestros conocimientos.',
+    visual: 'disciplines',
+    narration: [
+      'Fue el resultado de generaciones de matemáticos, físicos, ingenieros, informáticos y científicos que lograron unir sus conocimientos para alcanzar un mismo propósito.',
+      'Porque la exploración espacial no pertenece a una sola ciencia. Es el lugar donde muchas disciplinas se encuentran para hacer posible lo que antes parecía inalcanzable.',
     ],
   },
   {
     id: 'question',
     label: 'La pregunta',
+    eyebrow: 'La reflexión que nos dio origen',
     title: '¿Por qué esperar hasta la universidad?',
-    subtitle: 'La curiosidad comienza en la infancia.',
+    emphasis: 'hasta la universidad',
+    subtitle: 'La exploración también puede comenzar en la infancia.',
+    visual: 'question',
     narration: [
-      'Y esa historia nos llevó a preguntarnos…',
-      'Si la curiosidad comienza en la infancia, ¿por qué esperar hasta la universidad para experimentar cómo funciona la exploración espacial?',
-      '¿Qué pasaría si un niño pudiera explorar una estación lunar y descubrir, con sus propias decisiones, cómo mantenerla funcionando?',
+      'Y aquí nace una reflexión que dio origen a nuestro proyecto:',
+      'Si la curiosidad ha sido el motor de los mayores descubrimientos de la humanidad, ¿por qué esperar a que un niño llegue a la universidad para permitirle experimentar cómo funciona la exploración espacial?',
+      '¿Por qué no acercarlo desde sus primeros años a ese universo que tanto despierta su imaginación?',
+      'No solamente para que observe la Luna, sino para que aprenda a comprenderla, a explorarla y a resolver los desafíos que implica trabajar en ella.',
     ],
   },
   {
     id: 'project',
     label: 'El proyecto',
+    eyebrow: 'Con esa visión nace',
     title: 'Simulador para Astronautas Junior',
-    subtitle: 'Exploración 3D para niños de siete a doce años.',
+    emphasis: 'Astronautas Junior',
+    subtitle: 'La fascinación por el espacio se convierte en una experiencia con la ciencia.',
+    visual: 'station',
     narration: [
-      'Con esa visión nace Simulador para Astronautas Junior.',
-      'Una plataforma educativa tridimensional para niños de siete a doce años, donde la fascinación por el espacio se convierte en una oportunidad para experimentar con ciencia, tecnología e ingeniería.',
-    ],
-  },
-  {
-    id: 'connections',
-    label: 'La experiencia',
-    title: 'Una decisión conecta toda la estación.',
-    subtitle: 'El polvo, la energía, el rover y las comunicaciones trabajan juntos.',
-    narration: [
-      'Dentro de nuestra estación lunar, un niño conduce un rover cerca de unos paneles solares. El movimiento levanta polvo, que se deposita sobre ellos. La producción de energía disminuye.',
-      '¿Cómo puede recuperarla?',
-      'Con ayuda de LUNA, nuestra instructora virtual, activa la limpieza y observa cómo mejora la generación. Después utiliza esa electricidad para recargar el rover, orienta una antena y envía sus observaciones al centro de control.',
-    ],
-  },
-  {
-    id: 'learning',
-    label: 'El aprendizaje',
-    title: 'Observar. Comparar. Volver a probar.',
-    subtitle: 'LUNA acompaña cada descubrimiento.',
-    narration: [
-      'Así descubre que los equipos forman un sistema. Que sus decisiones tienen consecuencias. Y que comprender esas conexiones le permite resolver un desafío.',
-      'La física aparece en la energía. Las matemáticas, en los datos. Y la ingeniería, en la manera de conectar los equipos.',
-      'Cada intento invita a observar, comparar y volver a probar. LUNA acompaña el recorrido con explicaciones sencillas que despiertan nuevas preguntas.',
+      'Con esa visión nace nuestro proyecto: Simulador para Astronautas Junior.',
+      'Una plataforma educativa tridimensional que busca transformar la fascinación de los niños por el espacio en sus primeras experiencias con la ciencia, la tecnología y la ingeniería.',
     ],
   },
   {
     id: 'explorer',
     label: 'El propósito',
-    title: 'Antes de formar a un astronauta, debemos despertar la mente de un explorador.',
-    subtitle: 'El viaje comienza aquí.',
+    eyebrow: 'Nuestro propósito',
+    title: 'Antes de formar a un astronauta, debemos despertar la mente de un explorador',
+    emphasis: 'la mente de un explorador',
+    subtitle: 'Simulador para Astronautas Junior',
+    visual: 'horizon',
     narration: [
-      'Queremos que esa curiosidad se convierta en confianza para aprender, explorar y construir soluciones.',
-      'Porque antes de formar a un astronauta, debemos despertar la mente de un explorador.',
-      'Y tal vez, para quien algún día nos lleve más lejos, el viaje comience aquí.',
+      'Porque creemos que antes de formar a un astronauta, debemos despertar la mente de un explorador.',
     ],
   },
 ];
